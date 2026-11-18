@@ -32,15 +32,12 @@ Set-ItemProperty -Path $do1 -Name "DODownloadMode" -Value 0 -Type DWord
 $do2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config"; New-Item -Path $do2 -Force | Out-Null
 Set-ItemProperty -Path $do2 -Name "DODownloadMode" -Value 0 -Type DWord
 
-Write-Host "[3/5] Disabling SysMain & background UWP apps..." -ForegroundColor Yellow
+Write-Host "[3/5] Disabling SysMain (Superfetch)..." -ForegroundColor Yellow
 if (Get-Service -Name "SysMain" -ErrorAction SilentlyContinue) {
     Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
     Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction SilentlyContinue
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\SysMain" -Name "Start" -Value 4 -Type DWord
 }
-$ap = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; New-Item -Path $ap -Force | Out-Null
-Set-ItemProperty -Path $ap -Name "LetAppsRunInBackground" -Value 2 -Type DWord
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" -Name "GlobalUserDisabled" -Value 1 -Type DWord
 
 Write-Host "[4/5] Disabling Hibernation and Fast Startup..." -ForegroundColor Yellow
 powercfg.exe /hibernate off 2>$null
