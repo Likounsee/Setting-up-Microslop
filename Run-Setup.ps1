@@ -1,4 +1,11 @@
-#Requires -RunAsAdministrator
+# Self-elevate to Administrator if not already running as Admin
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    Start-Process -FilePath "powershell.exe" -ArgumentList $argList -Verb RunAs -Wait
+    exit $LASTEXITCODE
+}
+
 $ErrorActionPreference = "Stop"
 
 # Ensure the current working directory is the script's directory (repo root)
@@ -112,3 +119,4 @@ Write-Host "`n================================================================="
 Write-Host " All selected scripts have finished executing!" -ForegroundColor Green
 Write-Host " A system reboot is recommended to finalize all changes." -ForegroundColor Green
 Write-Host "=================================================================" -ForegroundColor Green
+Read-Host "`nPress Enter to close and clean up temporary files"
