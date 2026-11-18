@@ -1,41 +1,24 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
+Write-Host "=== Installing Lightweight Microsoft 365 (Word, Excel, PowerPoint Only) ===" -ForegroundColor Cyan
 
-# --- Configuration ---
-$WorkDir = "$env:TEMP\ODT_AutoInstall"
-$OdtExe  = "$WorkDir\setup.exe"
-$XmlPath = "$WorkDir\config.xml"
-$OdtPage = "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
+$workDir = "$env:TEMP\ODT-Light"
+New-Item -Path $workDir -ItemType Directory -Force | Out-Null
+Set-Location -Path $workDir
 
-Write-Host "=== Installation légère Microsoft 365 (Word, Excel, PowerPoint) ===" -ForegroundColor Cyan
+Write-Host "[1/3] Downloading Office Deployment Tool (ODT)..." -ForegroundColor Yellow
+$odtExe = Join-Path $workDir "odt.exe"
+Invoke-WebRequest -Uri "https://download.microsoft.com/download/2/7/A/27AF1BE6-DD20-4CB4-B154-EBAB8A7D4A7E/officedeploymenttool_17830-20162.exe" -OutFile $odtExe -UseBasicParsing
+Start-Process -FilePath $odtExe -ArgumentList "/quiet /extract:`"$workDir`"" -Wait
 
-try {
-    # 1. Préparation du dossier temporaire propre
-    if (Test-Path $WorkDir) { Remove-Item $WorkDir -Recurse -Force }
-    New-Item -Path $WorkDir -ItemType Directory -Force | Out-Null
-
-    # 2. Récupération et extraction automatique de l'Office Deployment Tool (ODT)
-    Write-Host "[1/4] Téléchargement de l'Office Deployment Tool..." -ForegroundColor Yellow
-    $html = (Invoke-WebRequest -Uri $OdtPage -UseBasicParsing).Content
-    if ($html -match 'https://download\.microsoft\.com/download/[^"]+officedeploymenttool[^"]+\.exe') {
-        $odtUrl = $matches[0]
-    } else {
-        throw "Impossible de récupérer le lien de téléchargement de l'ODT."
-    }
-
-    $installerPath = "$WorkDir\odt_installer.exe"
-    Invoke-WebRequest -Uri $odtUrl -OutFile $installerPath -UseBasicParsing
-    Start-Process -FilePath $installerPath -ArgumentList "/quiet /extract:`"$WorkDir`"" -Wait
-
-    # 3. Génération du fichier de configuration XML (Word, Excel, PowerPoint + FR/EN/DE)
-    Write-Host "[2/4] Génération de la configuration XML..." -ForegroundColor Yellow
-    $xmlContent = @"
+Write-Host "[2/3] Generating minimal XML configuration (FR base + EN/DE proofing)..." -ForegroundColor Yellow
+$xmlConfig = @"
 <Configuration>
   <Add OfficeClientEdition="64" Channel="Current">
     <Product ID="O365ProPlusRetail">
       <Language ID="fr-fr" />
-      <Language ID="en-us" />
-      <Language ID="de-de" />
+      <Language ID="en-us" Type="Proofing" />
+      <Language ID="de-de" Type="Proofing" />
       <ExcludeApp ID="Access" />
       <ExcludeApp ID="Bing" />
       <ExcludeApp ID="Groove" />
@@ -47,49 +30,16 @@ try {
       <ExcludeApp ID="Teams" />
     </Product>
   </Add>
-  <Updates Enabled="TRUE" />
+  <Property Name="SharedComputerLicensing" Value="0" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
   <Display Level="Full" AcceptEULA="TRUE" />
-  <Property Name="AUTOACTIVATE" Value="1" />
-  <Logging Level="Standard" Path="$WorkDir" />
 </Configuration>
 "@
-    Set-Content -Path $XmlPath -Value $xmlContent -Encoding UTF8
+$xmlPath = Join-Path $workDir "config.xml"
+[System.IO.File]::WriteAllText($xmlPath, $xmlConfig, [System.Text.UTF8Encoding]::new($false))
 
-    # 4. Lancement de l'installation et suivi de la progression
-    Write-Host "[3/4] Installation en cours (Word, Excel, PowerPoint)..." -ForegroundColor Yellow
-    $setupProc = Start-Process -FilePath $OdtExe -ArgumentList "/configure `"$XmlPath`"" -PassThru
-
-    $lastPercent = -1
-    while (-not $setupProc.HasExited) {
-        $logFile = Get-ChildItem "$WorkDir\*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($logFile) {
-            $lines = Get-Content $logFile.FullName -Tail 30 -ErrorAction SilentlyContinue
-            $progressLine = $lines | Where-Object { $_ -match "total progress is now (\d+)" } | Select-Object -Last 1
-            if ($progressLine -and $matches[1] -ne $lastPercent) {
-                $lastPercent = $matches[1]
-                Write-Host "      Progression globale : $lastPercent %" -ForegroundColor Green
-            }
-        }
-        Start-Sleep -Seconds 3
-    }
-
-    if ($setupProc.ExitCode -ne 0) {
-        throw "L'installation s'est terminée avec le code d'erreur : $($setupProc.ExitCode)"
-    }
-
-    Write-Host "      Installation terminée avec succès (100 %)." -ForegroundColor Green
-}
-finally {
-    # 5. Nettoyage complet des fichiers temporaires et journaux ODT
-    Write-Host "[4/4] Nettoyage des fichiers temporaires..." -ForegroundColor Yellow
-    if (Test-Path $WorkDir) {
-        Remove-Item -Path $WorkDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    Get-ChildItem "$env:TEMP\PC-*.log" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-}
-
-# Vérification finale des exécutables installés
-Write-Host "`n=== Vérification des applications installées ===" -ForegroundColor Cyan
-Get-ChildItem "C:\Program Files\Microsoft Office\root\Office16\*.exe" -ErrorAction SilentlyContinue |
-    Where-Object Name -match "^(WINWORD|EXCEL|POWERPNT|OUTLOOK|ONENOTE|MSPUB|MSACCESS|LYNC)\.EXE$" |
-    ForEach-Object { Write-Host " - $($_.Name)" -ForegroundColor White }
+Write-Host "[3/3] Running Office setup..." -ForegroundColor Yellow
+$proc = Start-Process -FilePath (Join-Path $workDir "setup.exe") -ArgumentList "/configure `"$xmlPath`"" -Wait -PassThru
+Set-Location -Path $env:TEMP
+Remove-Item -Path $workDir -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "`n=== Done! Lightweight Office 365 setup finished (Exit code $($proc.ExitCode)). ===" -ForegroundColor Green
