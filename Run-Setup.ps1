@@ -15,7 +15,7 @@ $modules = @(
     @{ File = "Remove-OneDriveComplete.ps1"; Title = "Complete OneDrive Removal"; Description = "Uninstalls OneDrive, cleans leftovers, and restores Desktop/Documents/Pictures locally." },
     @{ File = "Remove-XboxComplete.ps1"; Title = "Remove Xbox & Game Bar"; Description = "Removes Xbox apps and Game Bar pop-ups while keeping Minecraft authentication working." },
     @{ File = "Remove-WindowsBloatware.ps1"; Title = "Remove Copilot, Recall & Bloatware"; Description = "Kills and deletes Copilot, Recall, Widgets, sponsored shortcuts, and preinstalled apps." },
-    @{ File = "Install-OfficeLight.ps1"; Title = "Install Lightweight Office 365"; Description = "Installs only Word, Excel, and PowerPoint in French (with English/German proofing)." },
+    @{ File = "Install-OfficeLight.ps1"; Title = "Install Lightweight Office 365"; Description = "Installs only Word, Excel, and PowerPoint (prompts for French or English)." },
     @{ File = "Optimize-WindowsSystem.ps1"; Title = "System & Power Optimization"; Description = "Disables telemetry, P2P updates, SysMain, hibernation, and adapts power plan." },
     @{ File = "Finalize-WindowsClean.ps1"; Title = "Final Tweaks & Disk Cleanup"; Description = "Locks down sensors/Spotlight, shows extensions, disables mouse acceleration, cleans WinSxS." }
 )
