@@ -28,7 +28,7 @@ This command automatically:
 | **`Remove-XboxComplete.ps1`** | Removes Xbox apps and Game Bar overlays, neutralizes `ms-gamebar` protocol pop-ups, and sets Xbox auth services to `Manual` so **Minecraft** login continues working. |
 | **`Remove-WindowsBloatware.ps1`** | Disables Windows Recall, Copilot, and Widgets, uninstalls preinstalled bloatware, purges residual `AppData` caches, and blocks sponsored app suggestions. |
 | **`Install-OfficeLight.ps1`** | Downloads the official Office Deployment Tool (ODT) and installs **Microsoft 365 ProPlus** containing **only Word, Excel, and PowerPoint** in a single chosen language (**French** or **English**). |
-| **`Optimize-WindowsSystem.ps1`** | Disables telemetry/diagnostic tasks, Windows Update P2P (Delivery Optimization), `SysMain`, background UWP apps, and hibernation (`hiberfil.sys`), and sets the power plan dynamically (**Balanced** on laptops, **High Performance** on desktops). |
+| **`Optimize-WindowsSystem.ps1`** | Disables telemetry/diagnostic tasks, Windows Update P2P (Delivery Optimization), `SysMain`, and hibernation (`hiberfil.sys`), and sets the power plan dynamically (**Balanced** on laptops, **High Performance** on desktops). |
 | **`Finalize-WindowsClean.ps1`** | Locks down sensor/diagnostic permissions and lock screen Spotlight, reveals file extensions and hidden files, disables mouse acceleration (1:1 raw input), and cleans temporary files, update caches, and `WinSxS`. |
 
 ---
