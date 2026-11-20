@@ -2,7 +2,7 @@
 
 Modular PowerShell automation suite to debloat, optimize, and configure fresh **Windows 10 / 11** installations with zero leftover files.
 
-## Quick Start (One-Liner)
+## Quick Start
 
 Download the latest ZIP from GitHub, extract it, then **double-click `Run-Setup.cmd`**. You can also launch it from a terminal:
 
@@ -16,6 +16,7 @@ If you prefer a PowerShell one-liner, use this version (it deliberately keeps th
 
 ```powershell
 $tmp = Join-Path $env:TEMP ("microslop-" + (Get-Date -Format "yyyyMMdd-HHmmss")); $zip = "$tmp.zip"; New-Item -ItemType Directory -Path $tmp -Force | Out-Null; Invoke-RestMethod "https://github.com/Likounsee/Setting-up-Microslop/archive/refs/heads/main.zip" -OutFile $zip; Expand-Archive $zip -DestinationPath $tmp -Force; $dir = (Get-ChildItem $tmp -Directory)[0].FullName; & "$dir\Run-Setup.cmd"; Write-Host "Setup files, logs and backups retained at: $dir"
+```
 
 ---
 
