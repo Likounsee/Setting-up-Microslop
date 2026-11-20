@@ -51,5 +51,12 @@ Set-ProjectRegistryValue -Path $edgePolicy -Name "Update{F3017226-FE2A-4295-8BDF
 if (-not (Test-Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}")) {
     Invoke-ProjectNativeCommand -FilePath "winget.exe" -ArgumentList @("install", "--id", "Microsoft.EdgeWebView2Runtime", "--silent", "--accept-package-agreements", "--accept-source-agreements") | Out-Null
 }
+if ($registrySnapshot.Count -gt 0) {
+    $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+    $backupName = "{0}-{1}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss")
+    $backupPath = Join-Path $backupDirectory $backupName
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
+}
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! Edge removed and blocked, WebView2 preserved. ===" -ForegroundColor Green
