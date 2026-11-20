@@ -161,8 +161,14 @@ function Restore-ProjectRegistrySnapshot {
                 Set-ProjectRegistryValue -Path $entry.Path -Name $entry.Name -Value $entry.Value -ValueKind $entry.ValueKind | Out-Null
             } elseif (Test-Path -LiteralPath $entry.Path) {
                 Remove-ItemProperty -LiteralPath $entry.Path -Name $entry.Name -ErrorAction Stop
-                if (Get-ItemProperty -LiteralPath $entry.Path -Name $entry.Name -ErrorAction SilentlyContinue) {
-                    throw "Registry value still exists after removal."
+                $providerPath = $entry.Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
+                $registryKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
+                try {
+                    if ($registryKey.GetValueNames() -contains $entry.Name) {
+                        throw "Registry value still exists after removal."
+                    }
+                } finally {
+                    if ($registryKey -is [System.IDisposable]) { $registryKey.Dispose() }
                 }
             }
             if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
