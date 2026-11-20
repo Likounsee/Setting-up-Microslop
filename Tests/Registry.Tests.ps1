@@ -49,4 +49,45 @@ Describe "Project registry helpers" {
         (Get-Content -LiteralPath $script:ProjectLogPath -Raw) | Should -Not -Match "do-not-log-this"
         Remove-Item -LiteralPath $script:ProjectLogPath -Force -ErrorAction SilentlyContinue
     }
+    It "saves a persistent backup and restores it after re-import" {
+        $snapshot = @{}
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-" + [guid]::NewGuid().ToString("N") + ".json")
+        try {
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "before" -ValueKind String -Snapshot $snapshot | Should -BeTrue
+            Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Should -Be $backupPath
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "after" -ValueKind String | Should -BeTrue
+            $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
+            (Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "Persistent") | Should -Be "before"
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "round-trips binary registry values through a persistent backup" {
+        $snapshot = @{}
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-" + [guid]::NewGuid().ToString("N") + ".json")
+        $bytes = [byte[]](1, 2, 3, 254)
+        try {
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value $bytes -ValueKind Binary -Snapshot $snapshot | Should -BeTrue
+            Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Out-Null
+            $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
+            [Convert]::ToBase64String([byte[]](Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "BinaryValue")) |
+                Should -Be ([Convert]::ToBase64String($bytes))
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "rejects a backup with an unsupported format" {
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-invalid-" + [guid]::NewGuid().ToString("N") + ".json")
+        try {
+            Set-Content -LiteralPath $backupPath -Value '{"Format":"Other","Version":99,"Entries":[]}' -Encoding UTF8
+            { Import-ProjectRegistrySnapshot -Path $backupPath } | Should -Throw
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
 }
