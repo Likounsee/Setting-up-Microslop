@@ -85,16 +85,21 @@ function Invoke-ProjectTrackedNativeCommand {
         [switch]$ContinueOnError
     )
 
-    $commandText = (@($FilePath) + @($ArgumentList)) -join " "
+    $commandText = "Executable: $FilePath; arguments omitted from the operation journal."
     Write-ProjectOperationRecord -JournalPath $JournalPath -Operation $Operation -Category $Category -Status Started -Target $Target -Details $commandText | Out-Null
+    $exitCode = 1
     try {
-        $exitCode = Invoke-ProjectNativeCommand -FilePath $FilePath -ArgumentList $ArgumentList -AllowedExitCodes $AllowedExitCodes -ContinueOnError:$ContinueOnError
+        # Capture the exit code without allowing the lower-level helper to throw before it can be journaled.
+        $exitCode = Invoke-ProjectNativeCommand -FilePath $FilePath -ArgumentList $ArgumentList -AllowedExitCodes $AllowedExitCodes -ContinueOnError
         $status = if ($AllowedExitCodes -contains $exitCode) { "Completed" } else { "Failed" }
         Write-ProjectOperationRecord -JournalPath $JournalPath -Operation $Operation -Category $Category -Status $status -Target $Target -Details $commandText -ExitCode $exitCode | Out-Null
+        if (($AllowedExitCodes -notcontains $exitCode) -and (-not $ContinueOnError)) {
+            throw "Tracked external command failed with exit code $exitCode: $FilePath"
+        }
         return $exitCode
     } catch {
-        Write-ProjectOperationRecord -JournalPath $JournalPath -Operation $Operation -Category $Category -Status Failed -Target $Target -Details ($commandText + " | " + $_.Exception.Message) | Out-Null
+        if ($AllowedExitCodes -contains $exitCode) { throw }
         if (-not $ContinueOnError) { throw }
-        return 1
+        return $exitCode
     }
 }
