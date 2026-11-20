@@ -37,7 +37,7 @@ Write-ProjectLog -Level INFO -Message "Downloading Office Deployment Tool"
 Write-Host "[1/3] Downloading Office Deployment Tool (ODT)..." -ForegroundColor Yellow
 $odtExe = Join-Path $workDir "odt.exe"
 Invoke-WebRequest -Uri "https://download.microsoft.com/download/2/7/A/27AF1BE6-DD20-4CB4-B154-EBAB8A7D4A7E/officedeploymenttool_17830-20162.exe" -OutFile $odtExe -UseBasicParsing
-Start-Process -FilePath $odtExe -ArgumentList "/quiet /extract:`"$workDir`"" -Wait
+Invoke-ProjectNativeCommand -FilePath $odtExe -ArgumentList @("/quiet", "/extract:$workDir") | Out-Null
 
 Write-ProjectLog -Level INFO -Message "Generating minimal XML configuration"
 Write-Host "[2/3] Generating minimal XML configuration ($langLabel only)..." -ForegroundColor Yellow
@@ -67,8 +67,8 @@ $xmlPath = Join-Path $workDir "config.xml"
 
 Write-ProjectLog -Level INFO -Message "Running Office setup"
 Write-Host "[3/3] Running Office setup..." -ForegroundColor Yellow
-$proc = Start-Process -FilePath (Join-Path $workDir "setup.exe") -ArgumentList "/configure `"$xmlPath`"" -Wait -PassThru
+$officeExitCode = Invoke-ProjectNativeCommand -FilePath (Join-Path $workDir "setup.exe") -ArgumentList @("/configure", $xmlPath)
 Set-Location -Path $env:TEMP
 Remove-Item -Path $workDir -Recurse -Force -ErrorAction SilentlyContinue
-Complete-ProjectLogging -Message "Office setup process returned exit code $($proc.ExitCode)."
-Write-Host "`n=== Done! Lightweight Office 365 ($langLabel) finished (Exit code $($proc.ExitCode)). ===" -ForegroundColor Green
+Complete-ProjectLogging -Message "Office setup process returned exit code $officeExitCode."
+Write-Host "`n=== Done! Lightweight Office 365 ($langLabel) finished (Exit code $officeExitCode). ===" -ForegroundColor Green
