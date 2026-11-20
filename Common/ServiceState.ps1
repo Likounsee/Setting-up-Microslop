@@ -29,6 +29,7 @@ function Restore-ProjectServiceStates {
             }
         }
     }
+    return $success
 }
 
 
