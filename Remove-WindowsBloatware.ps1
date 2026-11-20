@@ -12,44 +12,12 @@ trap {
     }
     throw
 }
+$safetyScript = Join-Path $PSScriptRoot "Common\Safety.ps1"
+if (-not (Test-Path -LiteralPath $safetyScript)) { throw "Safety helpers not found: $safetyScript" }
+. $safetyScript
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Killing Processes & Full Removal (Binaries + Data/Caches) ===" -ForegroundColor Cyan
 
-function Remove-FolderForce([string]$TargetPath) {
-    # Only allow a direct child of the current user's Packages directory.
-    # This deliberately refuses arbitrary paths, nested paths and reparse points.
-    $packagesRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "Packages")).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
-    try {
-        if ([string]::IsNullOrWhiteSpace($TargetPath)) {
-            Write-Warning "Skipped package cleanup: empty target path."
-            return $false
-        }
-
-        $fullTarget = [System.IO.Path]::GetFullPath($TargetPath)
-        $parentPath = [System.IO.Path]::GetDirectoryName($fullTarget)
-        if (-not [string]::Equals($parentPath.TrimEnd([System.IO.Path]::DirectorySeparatorChar), $packagesRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            Write-Warning "Skipped cleanup outside the Packages root: $TargetPath"
-            return $false
-        }
-
-        if (-not (Test-Path -LiteralPath $fullTarget -PathType Container)) {
-            return $true
-        }
-
-        $item = Get-Item -LiteralPath $fullTarget -Force -ErrorAction Stop
-        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-            Write-Warning "Skipped reparse-point package directory: $fullTarget"
-            return $false
-        }
-
-        Remove-Item -LiteralPath $fullTarget -Recurse -Force -ErrorAction Stop
-        return $true
-    }
-    catch {
-        Write-Warning "Could not remove package directory '$TargetPath': $($_.Exception.Message)"
-        return $false
-    }
-}
 Write-ProjectLog -Level INFO -Message "Stopping background processes"
 Write-Host "[1/5] Stopping background processes..." -ForegroundColor Yellow
 @("Copilot", "Recall", "Widgets", "WidgetService", "WebExperienceHost", "Clipchamp", "olk", "HxTsr", "HxOutlook", "Cortana", "DevHome", "PhoneExperienceHost", "QuickAssist", "Microsoft.Notes", "GameBar", "Spotify") | ForEach-Object {
@@ -77,7 +45,7 @@ $patterns = @("*Copilot*", "*Client.AIX*", "*Client.WebExperience*", "*Clipchamp
 foreach ($p in $patterns) {
     Get-AppxPackage -AllUsers -Name $p | Where-Object { $_.NonRemovable -eq $false -and $_.InstallLocation -notlike "*\SystemApps\*" } | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
     Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like $p } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
-    Get-ChildItem -Path "$env:LOCALAPPDATA\Packages" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-FolderForce $_.FullName }
+    Get-ChildItem -Path "$env:LOCALAPPDATA\Packages" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-ProjectPackageDirectory -TargetPath $_.FullName -PackagesRoot (Join-Path $env:LOCALAPPDATA "Packages") | Out-Null }
 }
 
 Write-ProjectLog -Level INFO -Message "Skipping broad residual-folder deletion"
