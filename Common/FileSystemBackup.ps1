@@ -154,3 +154,27 @@ function Restore-ProjectFileSystemBackup {
     }
     return $restored
 }
+
+function Backup-ProjectApprovedDirectory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$TargetPath,
+        [Parameter(Mandatory = $true)][string[]]$AllowedTargetPaths,
+        [Parameter(Mandatory = $true)][string]$BackupDirectory
+    )
+
+    $target = Get-ProjectCanonicalPath -Path $TargetPath
+    $isAllowed = $false
+    foreach ($allowedPath in $AllowedTargetPaths) {
+        $canonicalAllowed = Get-ProjectCanonicalPath -Path $allowedPath
+        if ([string]::Equals($target, $canonicalAllowed, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $isAllowed = $true
+            break
+        }
+    }
+    if (-not $isAllowed) {
+        throw "Target is not in the explicit filesystem-backup allowlist: $target"
+    }
+    $parent = [System.IO.Path]::GetDirectoryName($target)
+    return Backup-ProjectPackageDirectory -TargetPath $target -PackagesRoot $parent -BackupDirectory $BackupDirectory
+}
