@@ -1,4 +1,4 @@
-﻿$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -Wait
     exit $LASTEXITCODE
@@ -9,6 +9,15 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding           = [System.Text.Encoding]::UTF8
 Set-Location -Path $PSScriptRoot
+
+$sharedLogger = Join-Path $PSScriptRoot "Common\Logging.ps1"
+if (Test-Path -LiteralPath $sharedLogger) {
+    . $sharedLogger
+    Initialize-ProjectLogging -ScriptName $MyInvocation.MyCommand.Name | Out-Null
+    Write-ProjectLog -Level INFO -Message "Orchestrator initialized; detailed transcript is also enabled."
+} else {
+    Write-Warning "Shared logger not found at $sharedLogger"
+}
 
 
 $modules = @(
@@ -74,16 +83,19 @@ try {
         $scriptPath = Join-Path -Path $PSScriptRoot -ChildPath $sel.File
         $moduleLog = Join-Path $logRoot ("{0}-{1}.log" -f $runId, [System.IO.Path]::GetFileNameWithoutExtension($sel.File))
         Write-Host "`n>>> [$step/$($selectedModules.Count)] Running $($sel.File)..." -ForegroundColor Cyan
+        if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level INFO -Message ("Starting module: " + $sel.File) }
         Write-Host "Module log: $moduleLog" -ForegroundColor Gray
         try {
             # Capture all output streams that the module actually emits.
             & $scriptPath *>&1 | Tee-Object -FilePath $moduleLog -Append
             $results += [pscustomobject]@{ Module = $sel.File; Status = "Returned"; Log = $moduleLog; Error = "" }
+            if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level INFO -Message ("Module returned: " + $sel.File) }
         } catch {
             $errorText = $_ | Out-String
             Write-Host "[ERROR] $($sel.File): $errorText" -ForegroundColor Red
             Add-Content -LiteralPath $moduleLog -Value "`n[ORCHESTRATOR ERROR] $errorText" -ErrorAction SilentlyContinue
             $results += [pscustomobject]@{ Module = $sel.File; Status = "Failed"; Log = $moduleLog; Error = $errorText.Trim() }
+            if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level ERROR -Message ("Module failed: " + $sel.File + " :: " + $errorText.Trim()) }
         }
         $step++
     }
