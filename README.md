@@ -66,6 +66,19 @@ Invoke-Pester -Path ./Tests -Output Detailed
 
 GitHub Actions runs PowerShell syntax parsing and Pester on both PowerShell 7 (`pwsh`) and Windows PowerShell 5.1 (`powershell`) on Windows runners whenever `main` is updated, and for pull requests.
 
+
+### Registry backup and restoration
+
+Each module that changes registry values writes a dated JSON backup to `Backups/Registry` before reporting completion. Backups preserve the previous value, whether it existed, and its registry type. Binary values are encoded as Base64; registry data values are not copied into application logs.
+
+To restore a backup from an elevated PowerShell session:
+
+```powershell
+.\Restore-RegistryBackup.ps1 -BackupPath ".\Backups\Registry\Optimize-WindowsSystem-YYYYMMDD-HHMMSS.json"
+```
+
+The restore script displays the number of entries and requires typing `RESTORE` before changing anything. Keep backup files private because they may contain previous Windows configuration values. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
+
 ## Notes
 
 - **Encoding:** All `.ps1` files are saved in **UTF-8 with BOM** for full compatibility with Windows PowerShell 5.1 and PowerShell 7+.
