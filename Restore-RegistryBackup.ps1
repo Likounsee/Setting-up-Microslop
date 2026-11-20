@@ -16,7 +16,7 @@ if (-not (Test-Path -LiteralPath $registryScript)) {
 $resolvedBackupPath = (Resolve-Path -LiteralPath $BackupPath -ErrorAction Stop).Path
 $snapshot = Import-ProjectRegistrySnapshot -Path $resolvedBackupPath
 Write-Host "Backup: $resolvedBackupPath" -ForegroundColor Cyan
-Write-Host "Registry values to restore: $($snapshot.Count)" -ForegroundColor Yellow
+Write-Host "Registry backup entries to restore: $($snapshot.Count)" -ForegroundColor Yellow
 Write-Warning "This operation changes the Windows registry. Current values will be overwritten."
 $confirmation = Read-Host 'Type RESTORE to continue'
 if ($confirmation -cne "RESTORE") {
