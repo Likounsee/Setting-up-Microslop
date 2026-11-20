@@ -49,13 +49,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 - The OneDrive module now preserves `%USERPROFILE%\\OneDrive`. Check that folder and confirm cloud-only files are available before manually deleting or moving anything.
 - The bloatware module uses Windows Appx removal commands and no longer takes ownership of or deletes files from `C:\\Program Files\\WindowsApps`.
 - Disabling SysMain and hibernation is now opt-in in the optimization module. Keep the defaults unless you understand the trade-offs for your device.
-- The cleanup module attempts to restore the original running/stopped state of Windows Update services after clearing caches.
+- The final-cleanup module now asks before deleting temporary files, limits cleanup to entries older than seven days, and skips trees containing reparse points or newer nested data. Windows Update cache cleanup and DISM component-store cleanup are also opt-in.
+- Non-reversible maintenance actions are recorded in a timestamped JSON operation journal under `Backups/Operations`. This is an audit trail, not a rollback mechanism. Windows Update caches are regenerable and are not backed up; DISM component-store cleanup cannot be undone.
+- The cleanup module attempts to restore the original running/stopped state of Windows Update services after cache maintenance.
 - These changes have been reviewed statically; they still need testing on clean Windows 10 and Windows 11 virtual machines before being considered production-ready.
 
 
 ## Development and tests
 
-The repository includes 40 Pester test cases covering shared logging, external-command exit codes, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
+The repository includes 49 Pester test cases covering shared logging, external-command exit codes, persistent operation journals, age-limited temporary cleanup, explicit temporary-path allowlists, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
 
 Run the test suite locally from the repository root:
 
@@ -111,6 +113,13 @@ $backup = Get-ChildItem .\\Backups\\FileSystem -Directory |
 ```
 
 The restore tool requires typing `RESTORE`, validates the manifest against the original parent directory, verifies the backup hashes, and never overwrites an existing destination. For OneDrive residual backups, the original parent directory is recorded in the manifest and used as the restore root. These backups preserve file contents and directory structure; they do not promise preservation of original ACLs, ownership, timestamps, or alternate data streams. They cover only package directories explicitly processed by the bloatware module and the three allowlisted OneDrive residual directories—not Appx uninstallations, provisioned-package removals, WindowsApps, the user OneDrive folder, or other system changes. Keep backups on a drive with enough free space; this implementation copies data before deletion and may temporarily require roughly twice the folder's storage.
+
+
+### Maintenance operation journal
+
+`Finalize-WindowsClean.ps1` writes an operation journal to `Backups/Operations`. It records whether maintenance actions were started, completed, failed, or skipped, along with the target, command details, timestamps, and native exit codes where available. Temporary cleanup is limited to top-level entries older than seven days in the explicitly approved TEMP directories; a directory is skipped if it contains newer data or a reparse point. Windows Update download caches are treated as regenerable data and are only cleared after confirmation. DISM component-store cleanup also requires confirmation and is marked as irreversible in the journal.
+
+The journal helps diagnose what the script actually attempted. It does not restore temporary files, rebuild Windows Update caches immediately, or reverse DISM changes. Windows recreates update caches as needed.
 
 ## Notes
 
