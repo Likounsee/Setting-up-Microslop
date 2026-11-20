@@ -2,7 +2,7 @@
 $loggingScript = Join-Path $PSScriptRoot "Common\Logging.ps1"
 if (Test-Path -LiteralPath $loggingScript) {
     . $loggingScript
-    Initialize-ProjectLogging -ScriptName $MyInvocation.MyCommand.Name | Out-Null
+    Initialize-ProjectLogging -ScriptName $MyInvocation.MyCommand.Name -LogDirectory (Join-Path $PSScriptRoot "Logs") | Out-Null
 } else {
     Write-Warning "Shared logger not found at $loggingScript"
 }
