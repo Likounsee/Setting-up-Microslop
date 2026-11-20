@@ -57,7 +57,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 
 ## Development and tests
 
-The repository includes 49 Pester test cases covering shared logging, external-command exit codes, persistent operation journals, age-limited temporary cleanup, explicit temporary-path allowlists, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
+The repository includes 55 Pester test cases covering shared logging, external-command exit codes and journaled exit codes, Appx inventory and recovery planning, auditable Appx removals, persistent operation journals, age-limited temporary cleanup, explicit temporary-path allowlists, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
 
 Run the test suite locally from the repository root:
 
@@ -115,11 +115,24 @@ $backup = Get-ChildItem .\\Backups\\FileSystem -Directory |
 The restore tool requires typing `RESTORE`, validates the manifest against the original parent directory, verifies the backup hashes, and never overwrites an existing destination. For OneDrive residual backups, the original parent directory is recorded in the manifest and used as the restore root. These backups preserve file contents and directory structure; they do not promise preservation of original ACLs, ownership, timestamps, or alternate data streams. They cover only package directories explicitly processed by the bloatware module and the three allowlisted OneDrive residual directories—not Appx uninstallations, provisioned-package removals, WindowsApps, the user OneDrive folder, or other system changes. Keep backups on a drive with enough free space; this implementation copies data before deletion and may temporarily require roughly twice the folder's storage.
 
 
+
+### Appx inventory and recovery assessment
+
+Before the Edge, Xbox, or general bloatware modules remove Appx packages, they save an inventory under `Backups/Appx`. It records stable package identities and selected metadata for installed and provisioned packages. Each removal is separately recorded as started, completed, or failed in that module's operation journal. The inventory does **not** contain Appx package binaries and does not make removal reversible.
+
+To compare a previous inventory with the current machine:
+
+```powershell
+.\Get-AppxRecoveryPlan.ps1 -InventoryPath .\Backups\Appx\Remove-WindowsBloatware-YYYYMMDD-HHMMSS-xxxxxxxx.json -CsvPath .\Backups\Appx\recovery-plan.csv
+```
+
+The report identifies packages that were present in the inventory but are no longer installed or provisioned. If the original install directory still exists, it suggests inspecting its `AppxManifest.xml`; otherwise it points to Microsoft Store Library, the original vendor installer, or matching Windows installation media. This is an assessment only: it never downloads or installs packages automatically. Some inbox packages can only be restored from a matching Windows image or trusted package source, and availability varies by Windows build.
+
 ### Maintenance operation journal
 
 `Finalize-WindowsClean.ps1` writes an operation journal to `Backups/Operations`. It records whether maintenance actions were started, completed, failed, or skipped, along with the target, command details, timestamps, and native exit codes where available. Temporary cleanup is limited to top-level entries older than seven days in the explicitly approved TEMP directories; a directory is skipped if it contains newer data or a reparse point. Windows Update download caches are treated as regenerable data and are only cleared after confirmation. DISM component-store cleanup also requires confirmation and is marked as irreversible in the journal.
 
-The journal helps diagnose what the script actually attempted. It does not restore temporary files, rebuild Windows Update caches immediately, or reverse DISM changes. Windows recreates update caches as needed.
+The journal helps diagnose what the script actually attempted. It does not restore temporary files, rebuild Windows Update caches immediately, reinstall removed Appx packages, or reverse DISM changes. External-command journal records omit raw arguments; the regular execution log may still contain command lines. Windows recreates update caches as needed.
 
 ## Notes
 
