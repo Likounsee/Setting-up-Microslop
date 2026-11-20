@@ -231,8 +231,11 @@ Describe "Project registry helpers" {
             Set-ProjectRegistryValue -Path $treePath -Name "Newer" -Value "replace-me" -ValueKind String | Out-Null
             $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
             (Restore-ProjectRegistrySnapshot -Snapshot $loaded -Force) | Should -BeTrue
-            (Get-ItemPropertyValue -LiteralPath $treePath -Name "Original") | Should -Be "backup"
-            (Get-ItemProperty -LiteralPath $treePath -Name "Newer" -ErrorAction SilentlyContinue) | Should -BeNullOrEmpty
+            $restoredKey = Get-Item -LiteralPath $treePath
+            try {
+                ($restoredKey.GetValue("Original")) | Should -Be "backup"
+                ($restoredKey.GetValueNames() -contains "Newer") | Should -BeFalse
+            } finally { $restoredKey.Dispose() }
         } finally {
             Remove-Item -LiteralPath $treePath -Recurse -Force -ErrorAction SilentlyContinue
             Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
