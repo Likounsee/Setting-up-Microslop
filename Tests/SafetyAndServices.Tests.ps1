@@ -19,7 +19,7 @@ Describe "Remove-ProjectPackageDirectory" {
         New-Item -Path $target -ItemType Directory -Force | Out-Null
         Set-Content -LiteralPath (Join-Path $target "data.txt") -Value "test"
 
-        $result = Remove-ProjectPackageDirectory -TargetPath $target -PackagesRoot $script:packagesRoot
+        $result = Remove-ProjectPackageDirectory -TargetPath $target -PackagesRoot $script:packagesRoot -BackupDirectory (Join-Path $script:safetyTestRoot "legacy-backups")
 
         $result | Should -BeTrue
         Test-Path -LiteralPath $target | Should -BeFalse
@@ -29,7 +29,7 @@ Describe "Remove-ProjectPackageDirectory" {
         $target = Join-Path $script:packagesRoot "Parent/Child"
         New-Item -Path $target -ItemType Directory -Force | Out-Null
 
-        $result = Remove-ProjectPackageDirectory -TargetPath $target -PackagesRoot $script:packagesRoot
+        $result = Remove-ProjectPackageDirectory -TargetPath $target -PackagesRoot $script:packagesRoot -BackupDirectory (Join-Path $script:safetyTestRoot "legacy-backups")
 
         $result | Should -BeFalse
         Test-Path -LiteralPath $target | Should -BeTrue
@@ -39,7 +39,7 @@ Describe "Remove-ProjectPackageDirectory" {
         $outside = Join-Path $script:safetyTestRoot "Outside"
         New-Item -Path $outside -ItemType Directory -Force | Out-Null
 
-        $result = Remove-ProjectPackageDirectory -TargetPath $outside -PackagesRoot $script:packagesRoot
+        $result = Remove-ProjectPackageDirectory -TargetPath $outside -PackagesRoot $script:packagesRoot -BackupDirectory (Join-Path $script:safetyTestRoot "legacy-backups")
 
         $result | Should -BeFalse
         Test-Path -LiteralPath $outside | Should -BeTrue
@@ -48,11 +48,11 @@ Describe "Remove-ProjectPackageDirectory" {
     It "treats an already missing direct child as successfully cleaned" {
         $target = Join-Path $script:packagesRoot "AlreadyGone"
 
-        Remove-ProjectPackageDirectory -TargetPath $target -PackagesRoot $script:packagesRoot | Should -BeTrue
+        Remove-ProjectPackageDirectory -TargetPath $target -PackagesRoot $script:packagesRoot -BackupDirectory (Join-Path $script:safetyTestRoot "legacy-backups") | Should -BeTrue
     }
 
     It "rejects an empty target" {
-        Remove-ProjectPackageDirectory -TargetPath "" -PackagesRoot $script:packagesRoot | Should -BeFalse
+        Remove-ProjectPackageDirectory -TargetPath "" -PackagesRoot $script:packagesRoot -BackupDirectory (Join-Path $script:safetyTestRoot "legacy-backups") | Should -BeFalse
     }
 }
 
@@ -152,7 +152,7 @@ Describe "Verified filesystem package backups" {
         Test-Path -LiteralPath $script:fileBackupTarget | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $backup "manifest.json") | Should -BeTrue
 
-        $restored = Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot
+        $restored = Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot -BackupDirectory (Join-Path $script:safetyTestRoot "legacy-backups")
         $restored | Should -Be 1
         Get-Content -LiteralPath (Join-Path $script:fileBackupTarget "nested\payload.txt") -Raw | Should -Match "recovery-data"
     }
