@@ -25,7 +25,7 @@ Write-Host "[2/4] Uninstalling Microsoft Edge browser..." -ForegroundColor Yello
     if (Test-Path $_) {
         Get-ChildItem -Path $_ -Directory | ForEach-Object {
             $setupExe = Join-Path $_.FullName "Installer\setup.exe"
-            if (Test-Path $setupExe) { Start-Process -FilePath $setupExe -ArgumentList "--uninstall --system-level --verbose-logging --force-uninstall" -Wait }
+            if (Test-Path $setupExe) { Invoke-ProjectNativeCommand -FilePath $setupExe -ArgumentList @("--uninstall", "--system-level", "--verbose-logging", "--force-uninstall") -ContinueOnError | Out-Null }
         }
     }
 }
@@ -45,7 +45,7 @@ Write-Host "[4/4] Verifying WebView2 Runtime & enabling updates..." -ForegroundC
 Set-ItemProperty -Path $edgePolicy -Name "Install{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -Type DWord
 Set-ItemProperty -Path $edgePolicy -Name "Update{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -Type DWord
 if (-not (Test-Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}")) {
-    winget install --id Microsoft.EdgeWebView2Runtime --silent --accept-package-agreements --accept-source-agreements
+    Invoke-ProjectNativeCommand -FilePath "winget.exe" -ArgumentList @("install", "--id", "Microsoft.EdgeWebView2Runtime", "--silent", "--accept-package-agreements", "--accept-source-agreements") | Out-Null
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! Edge removed and blocked, WebView2 preserved. ===" -ForegroundColor Green
