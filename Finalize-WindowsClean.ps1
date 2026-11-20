@@ -67,8 +67,7 @@ try {
         if ($serviceWasRunning[$name]) { Start-Service -Name $name -ErrorAction SilentlyContinue }
     }
 }
-$cleanup = Start-Process -FilePath "Dism.exe" -ArgumentList "/Online /Cleanup-Image /StartComponentCleanup" -Wait -PassThru -NoNewWindow
-if ($cleanup.ExitCode -ne 0) { Write-Warning "DISM component cleanup returned exit code $($cleanup.ExitCode)." }
+Invoke-ProjectNativeCommand -FilePath "Dism.exe" -ArgumentList @("/Online", "/Cleanup-Image", "/StartComponentCleanup") -ContinueOnError | Out-Null
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! Final tweaks applied and disk space cleaned. ===" -ForegroundColor Green
