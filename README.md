@@ -55,7 +55,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 
 ## Development and tests
 
-The repository includes 33 Pester test cases covering shared logging, external-command exit codes, guarded package-folder deletion, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
+The repository includes 38 Pester test cases covering shared logging, external-command exit codes, guarded package-folder deletion, verified filesystem backup and restore, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
 
 Run the test suite locally from the repository root:
 
@@ -96,6 +96,21 @@ $backup = Get-ChildItem .\Backups\Services\Finalize-WindowsClean-*.json |
 ```
 
 The recovery script requires typing `RESTORE` and only starts services that were running when the backup was made. It does not stop services that were originally stopped.
+
+
+### Filesystem backup and recovery
+
+The bloatware module now backs up each eligible direct-child directory under the current user's `%LOCALAPPDATA%\\Packages` before removing it. Each operation gets its own folder under `Backups/FileSystem`, containing the copied directory and a JSON manifest with the original destination and SHA-256 hashes for every file. The source is removed only after the copy has been verified. Reparse points are refused to avoid following junctions or symbolic links. If removal partially fails, the verified backup is deliberately retained.
+
+Restore from an elevated PowerShell session:
+
+```powershell
+$backup = Get-ChildItem .\\Backups\\FileSystem -Directory |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+.\\Restore-FileSystemBackup.ps1 -BackupDirectory $backup.FullName
+```
+
+The restore tool requires typing `RESTORE`, validates the manifest against the original Packages root, verifies the backup hashes, and never overwrites an existing destination. These backups preserve file contents and directory structure; they do not promise preservation of original ACLs, ownership, timestamps, or alternate data streams. They cover only package directories explicitly processed by the bloatware module—not Appx uninstallations, provisioned-package removals, WindowsApps, OneDrive data, or other system changes. Keep backups on a drive with enough free space; this implementation copies data before deletion and may temporarily require roughly twice the folder's storage.
 
 ## Notes
 
