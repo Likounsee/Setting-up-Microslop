@@ -336,8 +336,8 @@ function Restore-ProjectRegistrySnapshot {
                 if ((Test-Path -LiteralPath $entry.Path) -and -not $Force) {
                     throw "Registry key tree exists since backup; restore skipped to avoid overwriting newer data."
                 }
-                foreach ($node in @($entry.Tree | Sort-Object { ([string]$_.RelativePath).Split('\\').Count })) {
-                    $targetPath = if ([string]::IsNullOrEmpty($node.RelativePath)) { $entry.Path } else { $entry.Path.TrimEnd('\\') + '\\' + $node.RelativePath }
+                foreach ($node in @($entry.Tree | Sort-Object { ([string]$_.RelativePath).Split([char]'\').Count })) {
+                    $targetPath = if ([string]::IsNullOrEmpty($node.RelativePath)) { $entry.Path } else { $entry.Path.TrimEnd('\') + '\' + $node.RelativePath }
                     if (-not (Test-Path -LiteralPath $targetPath)) {
                         New-Item -Path $targetPath -Force -ErrorAction Stop | Out-Null
                     }
