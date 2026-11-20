@@ -12,7 +12,7 @@ function Set-ProjectRegistryValue {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][AllowNull()][object]$Value,
-        [ValidateSet('DWord', 'String', 'ExpandString', 'QWord', 'MultiString', 'Binary')]
+        [ValidateSet('DWord', 'String', 'ExpandString', 'QWord', 'MultiString', 'Binary', 'None')]
         [string]$ValueKind = 'DWord',
         [hashtable]$Snapshot,
         [string]$BackupFile
@@ -65,7 +65,7 @@ function Set-ProjectRegistryValue {
         if ($verifyKey -is [System.IDisposable]) { $verifyKey.Dispose() }
     }
     if ($actualKind -ne $ValueKind) { throw "Registry type verification failed for '$Path\$Name'." }
-    if ($ValueKind -eq 'Binary' -or $ValueKind -eq 'MultiString') {
+    if ($ValueKind -eq 'Binary' -or $ValueKind -eq 'MultiString' -or $ValueKind -eq 'None') {
         $matches = [System.Linq.Enumerable]::SequenceEqual([object[]]$actual, [object[]]$Value)
     } else {
         $matches = ($actual -eq $Value)
@@ -81,14 +81,14 @@ function Set-ProjectRegistryValue {
 
 function ConvertTo-ProjectRegistrySerializedValue {
     param([object]$Value, [string]$ValueKind)
-    if ($ValueKind -eq 'Binary') { return [Convert]::ToBase64String([byte[]]$Value) }
+    if ($ValueKind -eq 'Binary' -or $ValueKind -eq 'None') { return [Convert]::ToBase64String([byte[]]$Value) }
     if ($ValueKind -eq 'MultiString') { return ,([string[]]$Value) }
     return $Value
 }
 
 function ConvertFrom-ProjectRegistrySerializedValue {
     param([object]$Value, [string]$ValueKind)
-    if ($ValueKind -eq 'Binary') { return ,([Convert]::FromBase64String([string]$Value)) }
+    if ($ValueKind -eq 'Binary' -or $ValueKind -eq 'None') { return ,([Convert]::FromBase64String([string]$Value)) }
     if ($ValueKind -eq 'MultiString') { return ,([string[]]@($Value)) }
     return $Value
 }
@@ -259,7 +259,7 @@ function Import-ProjectRegistrySnapshot {
     foreach ($item in @($document.Entries)) {
         if ([string]$item.Path -notmatch '^(HKLM|HKCU|HKCR|HKU|HKCC):\\' -or
             [string]::IsNullOrWhiteSpace([string]$item.Name) -or
-            ($item.Exists -and [string]$item.ValueKind -notin @('DWord','String','ExpandString','QWord','MultiString','Binary'))) {
+            ($item.Exists -and [string]$item.ValueKind -notin @('DWord','String','ExpandString','QWord','MultiString','Binary','None'))) {
             throw "Registry backup contains an invalid entry."
         }
         $value = $item.Value
