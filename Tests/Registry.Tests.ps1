@@ -133,7 +133,7 @@ Describe "Project registry helpers" {
         $snapshot = @{}
         try {
             New-Item -Path $nestedPath -Force | Out-Null
-            $rootKey = Get-Item -LiteralPath $treePath
+            $rootKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey(($treePath -replace '^HKCU:\\', ''))
             try { $rootKey.SetValue("", "root-default", [Microsoft.Win32.RegistryValueKind]::String) } finally { $rootKey.Dispose() }
             Set-ProjectRegistryValue -Path $nestedPath -Name "Payload" -Value ([byte[]](3, 2, 1)) -ValueKind Binary | Should -BeTrue
 
@@ -219,7 +219,7 @@ Describe "Project registry helpers" {
     }
 
     It "replaces a recreated registry key tree only when Force is supplied" {
-        $treePath = $script:testRegistryPath + "\\ForceTree-" + [guid]::NewGuid().ToString("N")
+        $treePath = $script:testRegistryPath + "\ForceTree-" + [guid]::NewGuid().ToString("N")
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-tree-force-" + [guid]::NewGuid().ToString("N") + ".json")
         $snapshot = @{}
         try {
