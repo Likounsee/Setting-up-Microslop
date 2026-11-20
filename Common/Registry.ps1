@@ -55,7 +55,13 @@ function Set-ProjectRegistryValue {
     if (-not (Test-Path -LiteralPath $Path)) {
         New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
     }
-    New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $ValueKind -Force -ErrorAction Stop | Out-Null
+    $writeKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
+    try {
+        $registryKind = [System.Enum]::Parse([Microsoft.Win32.RegistryValueKind], $ValueKind, $true)
+        $writeKey.SetValue($Name, $Value, $registryKind)
+    } finally {
+        if ($writeKey -is [System.IDisposable]) { $writeKey.Dispose() }
+    }
     $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
     $verifyKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
     try {
