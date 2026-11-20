@@ -54,9 +54,9 @@ Describe "Project registry helpers" {
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-" + [guid]::NewGuid().ToString("N") + ".json")
         try {
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "before" -ValueKind String | Should -BeTrue
-            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "script-change" -ValueKind String -Snapshot $snapshot | Should -BeTrue
-            Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Should -Be $backupPath
-            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "after" -ValueKind String -Snapshot $snapshot | Should -BeTrue
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "script-change" -ValueKind String -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
+            (Test-Path -LiteralPath $backupPath -PathType Leaf) | Should -BeTrue
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "after" -ValueKind String -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
             $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
             (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
             (Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "Persistent") | Should -Be "before"
@@ -72,9 +72,8 @@ Describe "Project registry helpers" {
         try {
             $originalBytes = [byte[]](9, 8, 7)
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value $originalBytes -ValueKind Binary | Should -BeTrue
-            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value $bytes -ValueKind Binary -Snapshot $snapshot | Should -BeTrue
-            Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Out-Null
-            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value ([byte[]](4, 5, 6)) -ValueKind Binary -Snapshot $snapshot | Should -BeTrue
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value $bytes -ValueKind Binary -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value ([byte[]](4, 5, 6)) -ValueKind Binary -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
             $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
             (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
             [Convert]::ToBase64String([byte[]](Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "BinaryValue")) |
@@ -99,8 +98,7 @@ Describe "Project registry helpers" {
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-conflict-" + [guid]::NewGuid().ToString("N") + ".json")
         try {
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "before" -ValueKind String | Should -BeTrue
-            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "script-value" -ValueKind String -Snapshot $snapshot | Should -BeTrue
-            Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Out-Null
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "script-value" -ValueKind String -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "user-value" -ValueKind String | Should -BeTrue
             $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
             (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeFalse
