@@ -392,7 +392,18 @@ function Restore-ProjectRegistrySnapshot {
                 foreach ($node in @($entry.Tree | Sort-Object { ([string]$_.RelativePath).Split([char]'\').Count })) {
                     $targetPath = if ([string]::IsNullOrEmpty($node.RelativePath)) { $entry.Path } else { $entry.Path.TrimEnd('\') + '\' + $node.RelativePath }
                     if (-not (Test-Path -LiteralPath $targetPath)) {
-                        New-Item -Path $targetPath -Force -ErrorAction Stop | Out-Null
+                        $targetMatch = [regex]::Match($targetPath, '^(HKLM|HKCU|HKCR|HKU|HKCC):\\(.+)$')
+                        if (-not $targetMatch.Success) { throw "Unsupported registry restore path: $targetPath" }
+                        $targetHive = switch ($targetMatch.Groups[1].Value) {
+                            'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }
+                            'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }
+                            'HKCR' { [Microsoft.Win32.Registry]::ClassesRoot }
+                            'HKU'  { [Microsoft.Win32.Registry]::Users }
+                            'HKCC' { [Microsoft.Win32.Registry]::CurrentConfig }
+                        }
+                        $createdKey = $targetHive.CreateSubKey($targetMatch.Groups[2].Value)
+                        if ($null -eq $createdKey) { throw "Could not recreate registry key: $targetPath" }
+                        $createdKey.Dispose()
                     }
                     foreach ($value in @($node.Values)) {
                         Set-ProjectRegistryValue -Path $targetPath -Name $value.Name -Value $value.Value -ValueKind $value.Kind | Out-Null
