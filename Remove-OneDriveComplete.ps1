@@ -52,8 +52,15 @@ if (Test-Path "$env:USERPROFILE\OneDrive") {
 $odPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive"
 New-Item -Path $odPolicy -Force | Out-Null
 Set-ProjectRegistryValue -Path $odPolicy -Name "DisableFileSyncNGSC" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
-Remove-Item -Path "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" -Recurse -Force -ErrorAction SilentlyContinue
+$oneDriveExplorerKeys = @(
+    "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}",
+    "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+)
+foreach ($registryTreePath in $oneDriveExplorerKeys) {
+    if (Test-Path -LiteralPath $registryTreePath) {
+        Remove-ProjectRegistryKeyTree -Path $registryTreePath -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+    }
+}
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! OneDrive uninstalled and local user directories restored. ===" -ForegroundColor Green
