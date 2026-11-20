@@ -59,7 +59,9 @@ Describe "Remove-ProjectPackageDirectory" {
 Describe "Restore-ProjectServiceStates" {
     BeforeEach {
         $script:startedServices = @()
+        $script:failServiceName = $null
         Mock Start-Service {
+            if ($Name -eq $script:failServiceName) { throw "simulated service error" }
             $script:startedServices += $Name
         }
     }
@@ -82,11 +84,7 @@ Describe "Restore-ProjectServiceStates" {
     }
 
     It "continues when restoring one service fails" {
-        Mock Start-Service {
-            if ($Name -eq "wuauserv") { throw "simulated service error" }
-            $script:startedServices += $Name
-        }
-
+        $script:failServiceName = "wuauserv"
         $wasRunning = @{ wuauserv = $true; bits = $true }
         Restore-ProjectServiceStates -WasRunning $wasRunning -ServiceNames @("wuauserv", "bits")
 
