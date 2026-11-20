@@ -55,7 +55,7 @@ Describe "Project registry helpers" {
         try {
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "before" -ValueKind String -Snapshot $snapshot | Should -BeTrue
             Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Should -Be $backupPath
-            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "after" -ValueKind String | Should -BeTrue
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "after" -ValueKind String -Snapshot $snapshot | Should -BeTrue
             $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
             (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
             (Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "Persistent") | Should -Be "before"
@@ -85,6 +85,23 @@ Describe "Project registry helpers" {
         try {
             Set-Content -LiteralPath $backupPath -Value '{"Format":"Other","Version":99,"Entries":[]}' -Encoding UTF8
             { Import-ProjectRegistrySnapshot -Path $backupPath } | Should -Throw
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "does not overwrite a registry value changed after the backup unless forced" {
+        $snapshot = @{}
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-conflict-" + [guid]::NewGuid().ToString("N") + ".json")
+        try {
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "script-value" -ValueKind String -Snapshot $snapshot | Should -BeTrue
+            Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Out-Null
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "user-value" -ValueKind String | Should -BeTrue
+            $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeFalse
+            (Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "ConflictValue") | Should -Be "user-value"
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded -Force) | Should -BeTrue
+            (Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "ConflictValue") | Should -Be "before"
         } finally {
             Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
         }
