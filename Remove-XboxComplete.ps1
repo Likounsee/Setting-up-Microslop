@@ -16,6 +16,9 @@ $registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
 if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
 . $registryScript
 $registrySnapshot = @{}
+$registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+$registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Removing Xbox Bloatware & Game Bar (Keeping Minecraft Auth Ready) ===" -ForegroundColor Cyan
 
@@ -34,16 +37,16 @@ Write-Host "[2/4] Uninstalling Xbox apps while preserving XboxIdentityProvider..
 Write-ProjectLog -Level INFO -Message "Disabling Game Bar DVR, pop-ups, and ms-gamebar protocol prompts"
 Write-Host "[3/4] Disabling Game Bar DVR, pop-ups, and ms-gamebar protocol prompts..." -ForegroundColor Yellow
 New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Force | Out-Null
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR" -Name "AppCaptureEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 New-Item -Path "HKCU:\System\GameConfigStore" -Force | Out-Null
-Set-ProjectRegistryValue -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $dvrPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR"
 New-Item -Path $dvrPolicy -Force | Out-Null
-Set-ProjectRegistryValue -Path $dvrPolicy -Name "AllowGameDVR" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $dvrPolicy -Name "AllowGameDVR" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 New-Item -Path "HKCU:\Software\Classes\ms-gamebar\shell\open\command" -Force | Out-Null
-Set-ProjectRegistryValue -Path "HKCU:\Software\Classes\ms-gamebar" -Name "(Default)" -Value "URL:ms-gamebar" -ValueKind String -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path "HKCU:\Software\Classes\ms-gamebar" -Name "URL Protocol" -Value "" -ValueKind String -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path "HKCU:\Software\Classes\ms-gamebar\shell\open\command" -Name "(Default)" -Value "`"$env:SystemRoot\System32\systray.exe`"" -ValueKind String -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path "HKCU:\Software\Classes\ms-gamebar" -Name "(Default)" -Value "URL:ms-gamebar" -ValueKind String -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path "HKCU:\Software\Classes\ms-gamebar" -Name "URL Protocol" -Value "" -ValueKind String -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path "HKCU:\Software\Classes\ms-gamebar\shell\open\command" -Name "(Default)" -Value "`"$env:SystemRoot\System32\systray.exe`"" -ValueKind String -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 
 Write-ProjectLog -Level INFO -Message "Setting Xbox auth services to Manual startup for Minecraft compatibility"
 Write-Host "[4/4] Setting Xbox auth services to Manual startup for Minecraft compatibility..." -ForegroundColor Yellow
@@ -54,7 +57,7 @@ if ($registrySnapshot.Count -gt 0) {
     $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
     $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
     $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
     Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
