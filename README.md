@@ -69,7 +69,7 @@ GitHub Actions runs PowerShell syntax parsing and Pester on both PowerShell 7 (`
 
 ### Registry backup and restoration
 
-Each module that changes registry values writes or refreshes a dated JSON backup in `Backups/Registry` **before every registry mutation**. If a module is interrupted, the latest completed backup therefore still contains the original value and the intended value for conflict detection. Backups preserve the previous value, whether it existed, and its registry type. Binary values are encoded as Base64; registry data values are not copied into application logs.
+Each module that changes registry values writes or refreshes a dated JSON backup in `Backups/Registry` **before every registry mutation**. If a module is interrupted, the latest completed backup therefore still contains the original value and the intended value for conflict detection. Backups preserve the previous value, whether it existed, and its registry type. Binary values are encoded as Base64; registry data values are not copied into application logs. OneDrive Explorer CLSID key trees are now captured recursively, including nested keys, empty keys, default values, and all supported value types, before removal. The backup format is version 3 and remains able to import version 1 and 2 value-only backups.
 
 To restore a backup from an elevated PowerShell session:
 
@@ -82,7 +82,7 @@ $backup = Get-ChildItem .\Backups\Registry\Optimize-WindowsSystem-*.json |
 .\Restore-RegistryBackup.ps1 -BackupPath $backup.FullName -Force
 ```
 
-The restore script displays the number of entries and requires typing `RESTORE` before changing anything. It skips values changed since the backup; pass `-Force` only when you deliberately want to overwrite those newer values. Keep backup files private because they may contain previous Windows configuration values. This rollback currently covers values changed through `Set-ProjectRegistryValue`; the two Explorer CLSID key-tree removals in `Remove-OneDriveComplete.ps1` are not yet included in this backup format. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
+The restore script displays the number of entries and requires typing `RESTORE` before changing anything. It skips values changed since the backup and key trees recreated after removal; pass `-Force` only when you deliberately want to overwrite those newer values. Keep backup files private because they may contain previous Windows configuration values. Registry backups cover individual values changed through `Set-ProjectRegistryValue` and the two Explorer CLSID key trees removed by `Remove-OneDriveComplete.ps1`. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
 
 
 ### Service-state backup and recovery
