@@ -57,7 +57,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 
 ## Development and tests
 
-The repository includes 55 Pester test cases covering shared logging, external-command exit codes and journaled exit codes, Appx inventory and recovery planning, auditable Appx removals, persistent operation journals, age-limited temporary cleanup, explicit temporary-path allowlists, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
+The repository includes 56 Pester test cases covering shared logging, external-command exit codes and journaled exit codes, Appx inventory and recovery planning, auditable Appx removals, persistent operation journals, age-limited temporary cleanup, explicit temporary-path allowlists, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
 
 Run the test suite locally from the repository root:
 
