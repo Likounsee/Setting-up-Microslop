@@ -3,7 +3,7 @@
 
 function Get-ProjectRegistrySnapshotKey {
     param([string]$Path, [string]$Name)
-    return ($Path.TrimEnd('\\') + '|' + $Name)
+    return ($Path.TrimEnd('\') + '|' + $Name)
 }
 
 function Set-ProjectRegistryValue {
