@@ -136,3 +136,56 @@ Describe "Persistent service-state backups" {
     }
 
 }
+
+
+Describe "Verified filesystem package backups" {
+    BeforeEach {
+        $script:fileBackupRoot = Join-Path $script:safetyTestRoot ("FileBackups-" + [guid]::NewGuid().ToString("N"))
+        $script:fileBackupTarget = Join-Path $script:packagesRoot ("BackupTest-" + [guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Path $script:fileBackupTarget -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $script:fileBackupTarget "nested") -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $script:fileBackupTarget "nested\payload.txt") -Value "recovery-data"
+    }
+
+    It "backs up, verifies, removes, and restores a package directory" {
+        $backup = Backup-ProjectPackageDirectory -TargetPath $script:fileBackupTarget -PackagesRoot $script:packagesRoot -BackupDirectory $script:fileBackupRoot
+        Test-Path -LiteralPath $script:fileBackupTarget | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $backup "manifest.json") | Should -BeTrue
+
+        $restored = Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot
+        $restored | Should -Be 1
+        Get-Content -LiteralPath (Join-Path $script:fileBackupTarget "nested\payload.txt") -Raw | Should -Match "recovery-data"
+    }
+
+    It "does not overwrite an existing restore destination" {
+        $backup = Backup-ProjectPackageDirectory -TargetPath $script:fileBackupTarget -PackagesRoot $script:packagesRoot -BackupDirectory $script:fileBackupRoot
+        New-Item -ItemType Directory -Path $script:fileBackupTarget -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $script:fileBackupTarget "keep.txt") -Value "newer-data"
+
+        $restored = Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot -WarningAction SilentlyContinue
+        $restored | Should -Be 0
+        Get-Content -LiteralPath (Join-Path $script:fileBackupTarget "keep.txt") -Raw | Should -Match "newer-data"
+    }
+
+    It "rejects a backup target outside the approved Packages root" {
+        $outside = Join-Path $script:safetyTestRoot "NotAPackage"
+        New-Item -ItemType Directory -Path $outside -Force | Out-Null
+        { Backup-ProjectPackageDirectory -TargetPath $outside -PackagesRoot $script:packagesRoot -BackupDirectory $script:fileBackupRoot } | Should -Throw
+    }
+
+    It "rejects a manifest destination outside the approved Packages root" {
+        $backup = Backup-ProjectPackageDirectory -TargetPath $script:fileBackupTarget -PackagesRoot $script:packagesRoot -BackupDirectory $script:fileBackupRoot
+        $manifestPath = Join-Path $backup "manifest.json"
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $manifest.Entries[0].OriginalPath = Join-Path $script:safetyTestRoot "outside-target"
+        Set-Content -LiteralPath $manifestPath -Value (ConvertTo-Json -InputObject $manifest -Depth 8)
+        { Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot } | Should -Throw
+    }
+
+    It "rejects a tampered backup file before restoring it" {
+        $backup = Backup-ProjectPackageDirectory -TargetPath $script:fileBackupTarget -PackagesRoot $script:packagesRoot -BackupDirectory $script:fileBackupRoot
+        Set-Content -LiteralPath (Join-Path $backup "items/package/nested/payload.txt") -Value "tampered"
+        { Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot } | Should -Throw
+        Test-Path -LiteralPath $script:fileBackupTarget | Should -BeFalse
+    }
+}
