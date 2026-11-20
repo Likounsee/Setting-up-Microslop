@@ -54,7 +54,7 @@ Describe "Persistent operation journal" {
             $global:LASTEXITCODE = 42
         }
         $path = Join-Path $script:journalTestRoot "native-failure.json"
-        { Invoke-ProjectTrackedNativeCommand -FilePath "TestJournalNativeStub" -Operation "Native failure" -Category Irreversible -JournalPath $path } | Should -Throw
+        { Invoke-ProjectTrackedNativeCommand -FilePath "TestJournalNativeStub" -Operation "Native failure" -Category Irreversible -JournalPath $path } | Should -Throw -ExpectedMessage "*Tracked external command failed with exit code 42:*"
         $doc = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
         $doc.Records[-1].Status | Should -Be "Failed"
         $doc.Records[-1].ExitCode | Should -Be 42
