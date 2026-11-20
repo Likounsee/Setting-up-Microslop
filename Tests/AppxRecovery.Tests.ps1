@@ -27,6 +27,14 @@ Describe "Appx inventory and recovery planning" {
         $inventory.RecoveryNote | Should -Match "does not contain package binaries"
     }
 
+    It "supports a valid inventory with no installed or provisioned packages" {
+        $path = Join-Path $script:appxTestRoot "empty-inventory.json"
+        Save-ProjectAppxInventory -InstalledPackages @() -ProvisionedPackages @() -Path $path | Should -Be $path
+        $inventory = Import-ProjectAppxInventory -Path $path
+        @($inventory.InstalledPackages) | Should -HaveCount 0
+        @($inventory.ProvisionedPackages) | Should -HaveCount 0
+    }
+
     It "rejects an unsupported inventory format" {
         $path = Join-Path $script:appxTestRoot "invalid.json"
         Set-Content -LiteralPath $path -Value '{"Format":"Other","Version":1,"InstalledPackages":[],"ProvisionedPackages":[]}'
