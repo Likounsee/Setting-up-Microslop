@@ -1,10 +1,32 @@
 # Registry helpers with in-memory snapshots, persistent backups and read-back verification.
 # Compatible with Windows PowerShell 5.1 and PowerShell 7.
 
-
 function Test-ProjectRegistryPath {
     param([string]$Path, [switch]$AllowHiveRoot)
-    if ($Path -notmatch '^(HKLM|HKCU|HKCR|HKU|HKCC):\\(.*)
+    if ($Path -notmatch '^(HKLM|HKCU|HKCR|HKU|HKCC):\\(.*)$') { return $false }
+    $subPath = [string]$matches[2]
+    if ([string]::IsNullOrEmpty($subPath)) { return [bool]$AllowHiveRoot }
+    foreach ($segment in $subPath.Split([char]'\')) {
+        if ([string]::IsNullOrWhiteSpace($segment) -or $segment -eq '.' -or $segment -eq '..' -or $segment.Contains([char]0)) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-ProjectRegistryRelativePath {
+    param([string]$RelativePath)
+    if ([string]::IsNullOrEmpty($RelativePath)) { return $true }
+    if ($RelativePath.StartsWith('\') -or $RelativePath.EndsWith('\')) { return $false }
+    foreach ($segment in $RelativePath.Split([char]'\')) {
+        if ([string]::IsNullOrWhiteSpace($segment) -or $segment -eq '.' -or $segment -eq '..' -or $segment.Contains([char]0)) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Get-ProjectRegistrySnapshotKey {
     param([string]$Path, [string]$Name)
     return ($Path.TrimEnd('\') + '|' + $Name)
 }
