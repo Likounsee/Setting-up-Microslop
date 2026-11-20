@@ -75,9 +75,11 @@ To restore a backup from an elevated PowerShell session:
 
 ```powershell
 .\Restore-RegistryBackup.ps1 -BackupPath ".\Backups\Registry\Optimize-WindowsSystem-YYYYMMDD-HHMMSS.json"
+# To override detected changes made since the backup:
+.\Restore-RegistryBackup.ps1 -BackupPath ".\Backups\Registry\backup.json" -Force
 ```
 
-The restore script displays the number of entries and requires typing `RESTORE` before changing anything. Keep backup files private because they may contain previous Windows configuration values. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
+The restore script displays the number of entries and requires typing `RESTORE` before changing anything. It skips values changed since the backup; pass `-Force` only when you deliberately want to overwrite those newer values. Keep backup files private because they may contain previous Windows configuration values. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
 
 ## Notes
 
