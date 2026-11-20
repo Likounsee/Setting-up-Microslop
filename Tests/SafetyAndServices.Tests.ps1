@@ -91,3 +91,31 @@ Describe "Restore-ProjectServiceStates" {
         $script:startedServices | Should -Contain "bits"
     }
 }
+
+
+Describe "Persistent service-state backups" {
+    It "saves and re-imports service states" {
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-services-" + [guid]::NewGuid().ToString("N") + ".json")
+        $snapshot = @{ wuauserv = $true; bits = $false; dosvc = $true }
+        try {
+            Save-ProjectServiceSnapshot -WasRunning $snapshot -Path $backupPath | Should -Be $backupPath
+            $loaded = Import-ProjectServiceSnapshot -Path $backupPath
+            $loaded.Count | Should -Be 3
+            $loaded["wuauserv"] | Should -BeTrue
+            $loaded["bits"] | Should -BeFalse
+            $loaded["dosvc"] | Should -BeTrue
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "rejects a service backup with an unsupported format" {
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-services-invalid-" + [guid]::NewGuid().ToString("N") + ".json")
+        try {
+            Set-Content -LiteralPath $backupPath -Value '{"Format":"Other","Version":99,"Services":[]}' -Encoding UTF8
+            { Import-ProjectServiceSnapshot -Path $backupPath } | Should -Throw
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
