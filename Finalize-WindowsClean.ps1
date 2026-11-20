@@ -63,8 +63,15 @@ foreach ($name in $serviceNames) {
     $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
     if ($svc) {
         $serviceWasRunning[$name] = ($svc.Status -eq "Running")
-        if ($svc.Status -eq "Running") { Stop-Service -Name $name -Force -ErrorAction Stop }
     }
+}
+$serviceBackupDirectory = Join-Path $PSScriptRoot "Backups\Services"
+$serviceBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$serviceBackupFile = Join-Path $serviceBackupDirectory $serviceBackupName
+Save-ProjectServiceSnapshot -WasRunning $serviceWasRunning -Path $serviceBackupFile | Out-Null
+Write-Host "Service-state backup saved: $serviceBackupFile" -ForegroundColor Cyan
+foreach ($name in $serviceWasRunning.Keys) {
+    if ($serviceWasRunning[$name]) { Stop-Service -Name $name -Force -ErrorAction Stop }
 }
 try {
     foreach ($cachePath in @("$env:SystemRoot\SoftwareDistribution\Download", "$env:SystemRoot\SoftwareDistribution\DeliveryOptimization")) {
