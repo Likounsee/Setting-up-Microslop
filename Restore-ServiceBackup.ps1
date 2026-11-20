@@ -25,5 +25,10 @@ if ($confirmation -cne "RESTORE") {
     exit 0
 }
 
-Restore-ProjectServiceSnapshot -Snapshot $snapshot
-Write-Host "Service restoration requested. Check the service states above if any service failed to start." -ForegroundColor Green
+$restored = Restore-ProjectServiceSnapshot -Snapshot $snapshot
+if ($restored) {
+    Write-Host "All originally running services were started successfully." -ForegroundColor Green
+    exit 0
+}
+Write-Warning "One or more services could not be started. Review the warnings and service states."
+exit 1
