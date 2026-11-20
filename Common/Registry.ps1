@@ -125,7 +125,7 @@ function Remove-ProjectRegistryKeyTree {
             $values += [ordered]@{
                 Name = [string]$valueName
                 Kind = $kind
-                Value = ConvertTo-ProjectRegistrySerializedValue -Value $raw -ValueKind $kind
+                Value = $raw
             }
         }
         $treeNode = [ordered]@{ RelativePath = $RelativePath; Values = $values }
