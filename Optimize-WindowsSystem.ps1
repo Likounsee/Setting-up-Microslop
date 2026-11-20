@@ -80,5 +80,12 @@ if ($hasBat -or ($chassis | Where-Object { $_ -in @(8, 9, 10, 14, 30, 31, 32) })
     Invoke-ProjectNativeCommand -FilePath "powercfg.exe" -ArgumentList @("/setactive", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c") | Out-Null
     Write-Host "      Desktop detected -> 'High Performance' power plan activated." -ForegroundColor Green
 }
+if ($registrySnapshot.Count -gt 0) {
+    $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+    $backupName = "{0}-{1}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss")
+    $backupPath = Join-Path $backupDirectory $backupName
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
+}
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! System optimized and power plan adapted. ===" -ForegroundColor Green
