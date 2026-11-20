@@ -45,7 +45,15 @@ function Set-ProjectRegistryValue {
     }
 
     New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $ValueKind -Force -ErrorAction Stop | Out-Null
-    $actual = Get-ItemPropertyValue -LiteralPath $Path -Name $Name -ErrorAction Stop
+    $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
+    $verifyKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
+    try {
+        $actualKind = [string]$verifyKey.GetValueKind($Name)
+        $actual = $verifyKey.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+    } finally {
+        if ($verifyKey -is [System.IDisposable]) { $verifyKey.Dispose() }
+    }
+    if ($actualKind -ne $ValueKind) { throw "Registry type verification failed for '$Path\$Name'." }
     if ($ValueKind -eq 'Binary' -or $ValueKind -eq 'MultiString') {
         $matches = [System.Linq.Enumerable]::SequenceEqual([object[]]$actual, [object[]]$Value)
     } else {
