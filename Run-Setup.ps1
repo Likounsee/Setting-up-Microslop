@@ -13,7 +13,7 @@ Set-Location -Path $PSScriptRoot
 $sharedLogger = Join-Path $PSScriptRoot "Common\Logging.ps1"
 if (Test-Path -LiteralPath $sharedLogger) {
     . $sharedLogger
-    Initialize-ProjectLogging -ScriptName $MyInvocation.MyCommand.Name | Out-Null
+    Initialize-ProjectLogging -ScriptName $MyInvocation.MyCommand.Name -LogDirectory (Join-Path $PSScriptRoot "Logs") | Out-Null
     Write-ProjectLog -Level INFO -Message "Orchestrator initialized; detailed transcript is also enabled."
 } else {
     Write-Warning "Shared logger not found at $sharedLogger"
