@@ -52,6 +52,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 - The cleanup module attempts to restore the original running/stopped state of Windows Update services after clearing caches.
 - These changes have been reviewed statically; they still need testing on clean Windows 10 and Windows 11 virtual machines before being considered production-ready.
 
+
+## Development and tests
+
+The repository includes Pester tests for the shared logging helpers and external-command exit-code handling.
+
+Run the test suite locally from the repository root:
+
+```powershell
+Install-Module -Name Pester -MinimumVersion 5.0 -Scope CurrentUser
+Invoke-Pester -Path ./Tests -Output Detailed
+```
+
+GitHub Actions runs PowerShell syntax parsing and Pester on both PowerShell 7 (`pwsh`) and Windows PowerShell 5.1 (`powershell`) on Windows runners whenever `main` is updated, and for pull requests.
+
 ## Notes
 
 - **Encoding:** All `.ps1` files are saved in **UTF-8 with BOM** for full compatibility with Windows PowerShell 5.1 and PowerShell 7+.
