@@ -23,6 +23,22 @@ $registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
 $registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
+$operationJournalScript = Join-Path $PSScriptRoot "Common\OperationJournal.ps1"
+if (-not (Test-Path -LiteralPath $operationJournalScript)) { throw "Operation journal helpers not found: $operationJournalScript" }
+. $operationJournalScript
+$appxRecoveryScript = Join-Path $PSScriptRoot "Common\AppxRecovery.ps1"
+if (-not (Test-Path -LiteralPath $appxRecoveryScript)) { throw "Appx recovery helpers not found: $appxRecoveryScript" }
+. $appxRecoveryScript
+$operationJournalDirectory = Join-Path $PSScriptRoot "Backups\Operations"
+$operationJournalName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$operationJournalFile = Join-Path $operationJournalDirectory $operationJournalName
+$appxInventoryDirectory = Join-Path $PSScriptRoot "Backups\Appx"
+$appxInventoryName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$appxInventoryFile = Join-Path $appxInventoryDirectory $appxInventoryName
+$installedAppxPackages = @(Get-AppxPackage -AllUsers)
+$provisionedAppxPackages = @(Get-AppxProvisionedPackage -Online)
+Save-ProjectAppxInventory -InstalledPackages $installedAppxPackages -ProvisionedPackages $provisionedAppxPackages -Path $appxInventoryFile | Out-Null
+Write-Host "Appx inventory saved: $appxInventoryFile" -ForegroundColor Cyan
 $filesystemBackupDirectory = Join-Path $PSScriptRoot "Backups\FileSystem"
 Write-Host "=== Killing Processes & Full Removal (Binaries + Data/Caches) ===" -ForegroundColor Cyan
 
@@ -51,8 +67,12 @@ Write-ProjectLog -Level INFO -Message "Uninstalling bloatware apps and purging A
 Write-Host "[3/5] Uninstalling bloatware apps and purging AppData folders..." -ForegroundColor Yellow
 $patterns = @("*Copilot*", "*Client.AIX*", "*Client.WebExperience*", "*Clipchamp*", "*BingNews*", "*BingSearch*", "*BingWeather*", "*GetHelp*", "*Getstarted*", "*MicrosoftOfficeHub*", "*MicrosoftSolitaireCollection*", "*MicrosoftStickyNotes*", "*OutlookForWindows*", "Microsoft.People", "*PowerAutomateDesktop*", "*Todos*", "*DevHome*", "*WindowsAlarms*", "*WindowsCommunicationsApps*", "*WindowsFeedbackHub*", "*WindowsMaps*", "*WindowsSoundRecorder*", "*YourPhone*", "*ZuneMusic*", "*ZuneVideo*", "*549981C3F5F10*", "*QuickAssist*", "*MicrosoftFamily*", "*TikTok*", "*Spotify*", "*AmazonVideo*", "*PrimeVideo*", "*Disney*", "*WhatsApp*", "*Instagram*", "*Facebook*", "*Twitter*", "*CandyCrush*", "*BubbleWitch*", "*LinkedIn*", "*AdobeExpress*", "*Dropbox*")
 foreach ($p in $patterns) {
-    Get-AppxPackage -AllUsers -Name $p | Where-Object { $_.NonRemovable -eq $false -and $_.InstallLocation -notlike "*\SystemApps\*" } | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like $p } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
+    Get-AppxPackage -AllUsers -Name $p | Where-Object { $_.NonRemovable -eq $false -and $_.InstallLocation -notlike "*\SystemApps\*" } | ForEach-Object {
+        Invoke-ProjectAppxPackageRemoval -Package $_ -PackageType Installed -JournalPath $operationJournalFile | Out-Null
+    }
+    Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like $p } | ForEach-Object {
+        Invoke-ProjectAppxPackageRemoval -Package $_ -PackageType Provisioned -JournalPath $operationJournalFile | Out-Null
+    }
     Get-ChildItem -Path "$env:LOCALAPPDATA\Packages" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-ProjectPackageDirectory -TargetPath $_.FullName -PackagesRoot (Join-Path $env:LOCALAPPDATA "Packages") -BackupDirectory $filesystemBackupDirectory | Out-Null }
 }
 
