@@ -10,21 +10,6 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding           = [System.Text.Encoding]::UTF8
 Set-Location -Path $PSScriptRoot
 
-# Keep a durable record of the orchestrator and every module's visible output.
-$logRoot = Join-Path $PSScriptRoot "Logs"
-if (-not (Test-Path -LiteralPath $logRoot)) {
-    New-Item -Path $logRoot -ItemType Directory -Force -ErrorAction Stop | Out-Null
-}
-$runId = Get-Date -Format "yyyyMMdd-HHmmss"
-$runLog = Join-Path $logRoot "Setup-$runId.log"
-$transcriptStarted = $false
-try {
-    Start-Transcript -Path $runLog -Append -ErrorAction Stop | Out-Null
-    $transcriptStarted = $true
-} catch {
-    Write-Warning "Could not start transcript logging: $($_.Exception.Message)"
-}
-Write-Host "Log file: $runLog" -ForegroundColor Gray
 
 $modules = @(
     @{ File = "Remove-EdgeKeepWebView.ps1"; Title = "Remove Microsoft Edge"; Description = "Uninstalls Edge and blocks reinstallation while keeping WebView2 Runtime updated." },
@@ -65,6 +50,22 @@ foreach ($sel in $selectedModules) { Write-Host "  - $($sel.Title) ($($sel.File)
 
 Write-Host ""
 if ((Read-Host "Start execution now? [Y/N]").Trim().ToUpper() -ne "Y") { exit 0 }
+
+# Keep a durable record of the orchestrator and every module's visible output.
+$logRoot = Join-Path $PSScriptRoot "Logs"
+if (-not (Test-Path -LiteralPath $logRoot)) {
+    New-Item -Path $logRoot -ItemType Directory -Force -ErrorAction Stop | Out-Null
+}
+$runId = Get-Date -Format "yyyyMMdd-HHmmss"
+$runLog = Join-Path $logRoot "Setup-$runId.log"
+$transcriptStarted = $false
+try {
+    Start-Transcript -Path $runLog -Append -ErrorAction Stop | Out-Null
+    $transcriptStarted = $true
+} catch {
+    Write-Warning "Could not start transcript logging: $($_.Exception.Message)"
+}
+Write-Host "Log file: $runLog" -ForegroundColor Gray
 
 $results = @()
 $step = 1
