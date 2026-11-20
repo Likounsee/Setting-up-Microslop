@@ -19,6 +19,10 @@ $registrySnapshot = @{}
 $registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
 $registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
+$fileSystemBackupDirectory = Join-Path $PSScriptRoot "Backups\FileSystem"
+$filesystemBackupScript = Join-Path $PSScriptRoot "Common\FileSystemBackup.ps1"
+if (-not (Test-Path -LiteralPath $filesystemBackupScript)) { throw "Filesystem backup helpers not found: $filesystemBackupScript" }
+. $filesystemBackupScript
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Complete OneDrive Removal & Local Folder Restoration ===" -ForegroundColor Cyan
 
@@ -43,8 +47,21 @@ $shellKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell
 Write-ProjectLog -Level INFO -Message "Cleaning residual OneDrive folders and blocking reinstallation"
 Write-Host "[4/4] Cleaning residual OneDrive folders and blocking reinstallation..." -ForegroundColor Yellow
 Write-Warning "The user OneDrive folder is intentionally preserved to protect synced and online-only files."
-@("$env:LOCALAPPDATA\Microsoft\OneDrive", "$env:PROGRAMDATA\Microsoft OneDrive", "C:\OneDriveTemp") | ForEach-Object {
-    if (Test-Path $_) { Remove-Item -Path $_ -Recurse -Force -ErrorAction SilentlyContinue }
+$oneDriveResidualPaths = @(
+    "$env:LOCALAPPDATA\Microsoft\OneDrive",
+    "$env:PROGRAMDATA\Microsoft OneDrive",
+    "C:\OneDriveTemp"
+)
+foreach ($residualPath in $oneDriveResidualPaths) {
+    if (Test-Path -LiteralPath $residualPath -PathType Container) {
+        try {
+            Backup-ProjectApprovedDirectory -TargetPath $residualPath -AllowedTargetPaths $oneDriveResidualPaths -BackupDirectory $fileSystemBackupDirectory | Out-Null
+            Write-ProjectLog -Level INFO -Message "Backed up and removed approved OneDrive residual directory: $residualPath"
+        } catch {
+            Write-Warning "Preserved OneDrive residual directory because backup/removal was not safe: $residualPath ($($_.Exception.Message))"
+            Write-ProjectLog -Level WARNING -Message "Could not safely clean OneDrive residual directory: $residualPath"
+        }
+    }
 }
 if (Test-Path "$env:USERPROFILE\OneDrive") {
     Write-Warning "Review and manually migrate files from $env:USERPROFILE\OneDrive before deleting it. Files On-Demand may exist only in the cloud."
