@@ -23,6 +23,15 @@ $registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
 $registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
+$operationJournalScript = Join-Path $PSScriptRoot "Common\OperationJournal.ps1"
+if (-not (Test-Path -LiteralPath $operationJournalScript)) { throw "Operation journal helpers not found: $operationJournalScript" }
+. $operationJournalScript
+$temporaryCleanupScript = Join-Path $PSScriptRoot "Common\TemporaryCleanup.ps1"
+if (-not (Test-Path -LiteralPath $temporaryCleanupScript)) { throw "Temporary cleanup helpers not found: $temporaryCleanupScript" }
+. $temporaryCleanupScript
+$operationJournalDirectory = Join-Path $PSScriptRoot "Backups\Operations"
+$operationJournalName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$operationJournalFile = Join-Path $operationJournalDirectory $operationJournalName
 Write-Host "=== Final Tweaks (Privacy, File Extensions, 1:1 Mouse & Disk Cleanup) ===" -ForegroundColor Cyan
 
 Write-ProjectLog -Level INFO -Message "Locking down sensor permissions, diagnostics, and lock screen Spotlight"
@@ -53,10 +62,21 @@ Set-ProjectRegistryValue -Path $mp -Name "MouseThreshold2" -Value "0" -ValueKind
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class MouseHelper { [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, int[] c, uint d); }'
 [MouseHelper]::SystemParametersInfo(0x0004, 0, @(0, 0, 0), 3) | Out-Null
 
-Write-ProjectLog -Level INFO -Message "Cleaning temp files, Windows Update caches, and WinSxS"
-Write-Host "[3/3] Cleaning temp files, Windows Update caches, and WinSxS..." -ForegroundColor Yellow
-Get-ChildItem -Path "$env:TEMP" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path "$env:SystemRoot\Temp" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+Write-ProjectLog -Level INFO -Message "Optional age-limited temporary cleanup, Windows Update cache cleanup, and WinSxS maintenance"
+Write-Host "[3/3] Optional temporary and component-store maintenance..." -ForegroundColor Yellow
+$temporaryPaths = @($env:TEMP, (Join-Path $env:SystemRoot "Temp")) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+if ((Read-Host "Remove temporary entries older than 7 days from approved TEMP folders? [y/N]").Trim() -match "^(?i)y(es)?$") {
+    foreach ($temporaryPath in $temporaryPaths) {
+        try {
+            $cleanup = Remove-ProjectStaleTemporaryItems -Path $temporaryPath -AllowedPaths $temporaryPaths -JournalPath $operationJournalFile -MinimumAgeDays 7
+            Write-Host ("      {0}: removed {1}, skipped {2}, failed {3}" -f $temporaryPath, $cleanup.Removed, $cleanup.Skipped, $cleanup.Failed) -ForegroundColor Gray
+        } catch {
+            Write-ProjectLog -Level WARNING -Message ("Temporary cleanup was not completed for {0}: {1}" -f $temporaryPath, $_.Exception.Message)
+        }
+    }
+} else {
+    Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Temporary cleanup" -Category Regenerable -Status Skipped -Details "User declined temporary cleanup." | Out-Null
+}
 $serviceNames = @("wuauserv", "bits", "dosvc")
 $serviceWasRunning = @{}
 foreach ($name in $serviceNames) {
@@ -74,15 +94,31 @@ foreach ($name in $serviceWasRunning.Keys) {
     if ($serviceWasRunning[$name]) { Stop-Service -Name $name -Force -ErrorAction Stop }
 }
 try {
-    foreach ($cachePath in @("$env:SystemRoot\SoftwareDistribution\Download", "$env:SystemRoot\SoftwareDistribution\DeliveryOptimization")) {
-        if (Test-Path -LiteralPath $cachePath) {
-            Get-ChildItem -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    if ((Read-Host "Clear regenerable Windows Update download caches? [y/N]").Trim() -match "^(?i)y(es)?$") {
+        foreach ($cachePath in @("$env:SystemRoot\SoftwareDistribution\Download", "$env:SystemRoot\SoftwareDistribution\DeliveryOptimization")) {
+            if (Test-Path -LiteralPath $cachePath -PathType Container) {
+                Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Windows Update cache cleanup" -Category Regenerable -Status Started -Target $cachePath -Details "Cache contents are regenerable; contents are not backed up." | Out-Null
+                try {
+                    Get-ChildItem -LiteralPath $cachePath -Force -ErrorAction Stop | Remove-Item -Recurse -Force -ErrorAction Stop
+                    Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Windows Update cache cleanup" -Category Regenerable -Status Completed -Target $cachePath -Details "Cache contents cleared; Windows can recreate them." | Out-Null
+                } catch {
+                    Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Windows Update cache cleanup" -Category Regenerable -Status Failed -Target $cachePath -Details $_.Exception.Message | Out-Null
+                    throw
+                }
+            }
         }
+    } else {
+        Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Windows Update cache cleanup" -Category Regenerable -Status Skipped -Details "User declined cache cleanup." | Out-Null
     }
 } finally {
     Restore-ProjectServiceStates -WasRunning $serviceWasRunning -ServiceNames $serviceNames
 }
-Invoke-ProjectNativeCommand -FilePath "Dism.exe" -ArgumentList @("/Online", "/Cleanup-Image", "/StartComponentCleanup") -ContinueOnError | Out-Null
+if ((Read-Host "Run DISM component-store cleanup? This operation is not reversible. [y/N]").Trim() -match "^(?i)y(es)?$") {
+    Invoke-ProjectTrackedNativeCommand -FilePath "Dism.exe" -ArgumentList @("/Online", "/Cleanup-Image", "/StartComponentCleanup") -Operation "DISM component-store cleanup" -Category Irreversible -JournalPath $operationJournalFile -Target "$env:SystemRoot\WinSxS" -ContinueOnError | Out-Null
+} else {
+    Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "DISM component-store cleanup" -Category Irreversible -Status Skipped -Target "$env:SystemRoot\WinSxS" -Details "User declined non-reversible component-store maintenance." | Out-Null
+}
+Write-Host "Operation journal saved: $operationJournalFile" -ForegroundColor Cyan
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! Final tweaks applied and disk space cleaned. ===" -ForegroundColor Green
