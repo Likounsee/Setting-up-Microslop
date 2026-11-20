@@ -55,7 +55,27 @@ function Set-ProjectRegistryValue {
     if (-not (Test-Path -LiteralPath $Path)) {
         New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
     }
-    if ($Path -notmatch '^(HKLM|HKCU|HKCR|HKU|HKCC):\\(.+)
+    if ($Path -notmatch '^(HKLM|HKCU|HKCR|HKU|HKCC):\\(.+)$') {
+        throw "Unsupported registry path for writing: $Path"
+    }
+    $hiveName = $matches[1]
+    $subKeyPath = $matches[2]
+    $registryBaseKey = switch ($hiveName) {
+        'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }
+        'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }
+        'HKCR' { [Microsoft.Win32.Registry]::ClassesRoot }
+        'HKU'  { [Microsoft.Win32.Registry]::Users }
+        'HKCC' { [Microsoft.Win32.Registry]::CurrentConfig }
+    }
+    $writeKey = $registryBaseKey.CreateSubKey($subKeyPath)
+    if ($null -eq $writeKey) { throw "Could not open registry key for writing: $Path" }
+    try {
+        $registryKind = [System.Enum]::Parse([Microsoft.Win32.RegistryValueKind], $ValueKind, $true)
+        $writeKey.SetValue($Name, $Value, $registryKind)
+        $writeKey.Flush()
+    } finally {
+        $writeKey.Dispose()
+    }
     $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
     $verifyKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
     try {
@@ -297,7 +317,7 @@ function Import-ProjectRegistrySnapshot {
             foreach ($node in @($treeItem.Nodes)) {
                 $nodeValues = @()
                 foreach ($value in @($node.Values)) {
-                    if ([string]$value.Kind -notin @('DWord','String','ExpandString','QWord','MultiString','Binary')) {
+                    if ([string]$value.Kind -notin @('DWord','String','ExpandString','QWord','MultiString','Binary','None')) {
                         throw "Registry key-tree backup contains an unsupported value kind."
                     }
                     $nodeValues += @{
@@ -356,7 +376,7 @@ function Restore-ProjectRegistrySnapshot {
                 }
                 $expectedValue = $entry.CurrentValue
                 if ($currentKind -ne $entry.CurrentValueKind) { throw "Registry value type changed since backup; restore skipped." }
-                if ($currentKind -eq 'Binary' -or $currentKind -eq 'MultiString') {
+                if ($currentKind -eq 'Binary' -or $currentKind -eq 'MultiString' -or $currentKind -eq 'None') {
                     $unchanged = [System.Linq.Enumerable]::SequenceEqual([object[]]$currentValue, [object[]]$expectedValue)
                 } else {
                     $unchanged = ($currentValue -eq $expectedValue)
