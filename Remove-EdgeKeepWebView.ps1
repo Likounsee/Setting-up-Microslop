@@ -16,6 +16,9 @@ $registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
 if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
 . $registryScript
 $registrySnapshot = @{}
+$registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+$registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Removing Microsoft Edge (Keeping WebView2 Runtime) ===" -ForegroundColor Cyan
 
@@ -40,14 +43,14 @@ Write-ProjectLog -Level INFO -Message "Blocking Edge reinstallation via Windows 
 Write-Host "[3/4] Blocking Edge reinstallation via Windows Update..." -ForegroundColor Yellow
 $edgePolicy = "HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate"
 New-Item -Path $edgePolicy -Force | Out-Null
-Set-ProjectRegistryValue -Path $edgePolicy -Name "Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $edgePolicy -Name "Update{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $edgePolicy -Name "DoNotUpdateToEdgeWithChromium" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Update{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $edgePolicy -Name "DoNotUpdateToEdgeWithChromium" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 
 Write-ProjectLog -Level INFO -Message "Verifying WebView2 Runtime & enabling updates"
 Write-Host "[4/4] Verifying WebView2 Runtime & enabling updates..." -ForegroundColor Yellow
-Set-ProjectRegistryValue -Path $edgePolicy -Name "Install{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $edgePolicy -Name "Update{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Install{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Update{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 if (-not (Test-Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}")) {
     Invoke-ProjectNativeCommand -FilePath "winget.exe" -ArgumentList @("install", "--id", "Microsoft.EdgeWebView2Runtime", "--silent", "--accept-package-agreements", "--accept-source-agreements") | Out-Null
 }
@@ -55,7 +58,7 @@ if ($registrySnapshot.Count -gt 0) {
     $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
     $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
     $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
     Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
