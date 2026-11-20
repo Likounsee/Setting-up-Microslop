@@ -55,7 +55,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 
 ## Development and tests
 
-The repository includes Pester tests for the shared logging helpers and external-command exit-code handling.
+The repository includes Pester tests for shared logging, external-command exit codes, guarded package-folder deletion, and restoration of Windows service states.
 
 Run the test suite locally from the repository root:
 
