@@ -69,7 +69,7 @@ GitHub Actions runs PowerShell syntax parsing and Pester on both PowerShell 7 (`
 
 ### Registry backup and restoration
 
-Each module that changes registry values writes a dated JSON backup to `Backups/Registry` before reporting completion. Backups preserve the previous value, whether it existed, and its registry type. Binary values are encoded as Base64; registry data values are not copied into application logs.
+Each module that changes registry values writes or refreshes a dated JSON backup in `Backups/Registry` **before every registry mutation**. If a module is interrupted, the latest completed backup therefore still contains the original value and the intended value for conflict detection. Backups preserve the previous value, whether it existed, and its registry type. Binary values are encoded as Base64; registry data values are not copied into application logs.
 
 To restore a backup from an elevated PowerShell session:
 
@@ -83,6 +83,19 @@ $backup = Get-ChildItem .\Backups\Registry\Optimize-WindowsSystem-*.json |
 ```
 
 The restore script displays the number of entries and requires typing `RESTORE` before changing anything. It skips values changed since the backup; pass `-Force` only when you deliberately want to overwrite those newer values. Keep backup files private because they may contain previous Windows configuration values. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
+
+
+### Service-state backup and recovery
+
+`Finalize-WindowsClean.ps1` records the initial states of Windows Update services before stopping any of them. The dated JSON file is stored in `Backups/Services`. The module still attempts immediate restoration in its `finally` block; if Windows or PowerShell is interrupted before that runs, restore the recorded running services manually from an elevated PowerShell session:
+
+```powershell
+$backup = Get-ChildItem .\Backups\Services\Finalize-WindowsClean-*.json |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+.\Restore-ServiceBackup.ps1 -BackupPath $backup.FullName
+```
+
+The recovery script requires typing `RESTORE` and only starts services that were running when the backup was made. It does not stop services that were originally stopped.
 
 ## Notes
 
