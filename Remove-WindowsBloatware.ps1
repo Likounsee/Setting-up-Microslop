@@ -3,12 +3,40 @@ $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Killing Processes & Full Removal (Binaries + Data/Caches) ===" -ForegroundColor Cyan
 
 function Remove-FolderForce([string]$TargetPath) {
-    if (Test-Path $TargetPath) {
-        # Do not take ownership or rewrite ACLs; remove only the targeted cache folder.
-        Remove-Item -Path $TargetPath -Recurse -Force -ErrorAction SilentlyContinue
+    # Only allow a direct child of the current user's Packages directory.
+    # This deliberately refuses arbitrary paths, nested paths and reparse points.
+    $packagesRoot = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA "Packages")).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+    try {
+        if ([string]::IsNullOrWhiteSpace($TargetPath)) {
+            Write-Warning "Skipped package cleanup: empty target path."
+            return $false
+        }
+
+        $fullTarget = [System.IO.Path]::GetFullPath($TargetPath)
+        $parentPath = [System.IO.Path]::GetDirectoryName($fullTarget)
+        if (-not [string]::Equals($parentPath.TrimEnd([System.IO.Path]::DirectorySeparatorChar), $packagesRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning "Skipped cleanup outside the Packages root: $TargetPath"
+            return $false
+        }
+
+        if (-not (Test-Path -LiteralPath $fullTarget -PathType Container)) {
+            return $true
+        }
+
+        $item = Get-Item -LiteralPath $fullTarget -Force -ErrorAction Stop
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Write-Warning "Skipped reparse-point package directory: $fullTarget"
+            return $false
+        }
+
+        Remove-Item -LiteralPath $fullTarget -Recurse -Force -ErrorAction Stop
+        return $true
+    }
+    catch {
+        Write-Warning "Could not remove package directory '$TargetPath': $($_.Exception.Message)"
+        return $false
     }
 }
-
 Write-Host "[1/5] Stopping background processes..." -ForegroundColor Yellow
 @("Copilot", "Recall", "Widgets", "WidgetService", "WebExperienceHost", "Clipchamp", "olk", "HxTsr", "HxOutlook", "Cortana", "DevHome", "PhoneExperienceHost", "QuickAssist", "Microsoft.Notes", "GameBar", "Spotify") | ForEach-Object {
     Get-Process -Name "*$_*" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -36,10 +64,8 @@ foreach ($p in $patterns) {
     Get-ChildItem -Path "$env:LOCALAPPDATA\Packages" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-FolderForce $_.FullName }
 }
 
-Write-Host "[4/5] Cleaning residual system directories..." -ForegroundColor Yellow
-@("$env:LOCALAPPDATA\Microsoft\Windows\Recall", "$env:LOCALAPPDATA\Microsoft\Olk", "$env:LOCALAPPDATA\Microsoft\OneAuth", "$env:LOCALAPPDATA\Microsoft\IdentityCache", "$env:LOCALAPPDATA\Microsoft\Copilot", "$env:LOCALAPPDATA\Packages\MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy", "$env:LOCALAPPDATA\Packages\Microsoft.Copilot_8wekyb3d8bbwe") | ForEach-Object {
-    Get-Item -Path $_ -ErrorAction SilentlyContinue | ForEach-Object { Remove-FolderForce $_.FullName }
-}
+Write-Host "[4/5] Skipping broad residual-folder deletion..." -ForegroundColor Yellow
+Write-Host "Only app data directories directly under $env:LOCALAPPDATA\\Packages are eligible for removal." -ForegroundColor DarkYellow
 
 Write-Host "[5/5] Blocking sponsored suggestions..." -ForegroundColor Yellow
 $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"; New-Item -Path $cdm -Force | Out-Null
@@ -51,4 +77,4 @@ Set-ItemProperty -Path $cc -Name "DisableWindowsConsumerFeatures" -Value 1 -Type
 Set-ItemProperty -Path $cc -Name "DisableSoftLanding" -Value 1 -Type DWord
 Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_IrisRecommendations" -Value 0 -Type DWord
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
-Write-Host "`n=== Done! Processes stopped, apps uninstalled, and data folders purged. ===" -ForegroundColor Green
+Write-Host "`n=== Finished. Review warnings above; some operations may have been skipped or failed. ===" -ForegroundColor Yellow
