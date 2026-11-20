@@ -107,10 +107,26 @@ try {
         if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level INFO -Message ("Starting module: " + $sel.File) }
         Write-Host "Module log: $moduleLog" -ForegroundColor Gray
         try {
-            # Capture all output streams that the module actually emits.
-            & $scriptPath *>&1 | Tee-Object -FilePath $moduleLog -Append
-            $results += [pscustomobject]@{ Module = $sel.File; Status = "Returned"; Log = $moduleLog; Error = "" }
-            if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level INFO -Message ("Module returned: " + $sel.File) }
+            # Capture all streams while keeping module output visible in the console and log.
+            $moduleOutput = New-Object 'System.Collections.Generic.List[object]'
+            & $scriptPath *>&1 |
+                ForEach-Object {
+                    [void]$moduleOutput.Add($_)
+                    $_
+                } |
+                Tee-Object -FilePath $moduleLog -Append
+
+            # A script can return normally while still emitting non-terminating errors.
+            $moduleErrors = @($moduleOutput | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
+            if ($moduleErrors.Count -gt 0) {
+                $errorText = ($moduleErrors | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+                Write-Host "[WARN] $($sel.File) returned with $($moduleErrors.Count) PowerShell error record(s)." -ForegroundColor Yellow
+                $results += [pscustomobject]@{ Module = $sel.File; Status = "CompletedWithErrors"; Log = $moduleLog; Error = $errorText }
+                if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level WARNING -Message ("Module returned with error records: " + $sel.File + " :: " + $errorText) }
+            } else {
+                $results += [pscustomobject]@{ Module = $sel.File; Status = "Returned"; Log = $moduleLog; Error = "" }
+                if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level INFO -Message ("Module returned: " + $sel.File) }
+            }
         } catch {
             $errorRecord = $_
             $errorText = $errorRecord | Out-String
@@ -133,9 +149,9 @@ try {
 
     Write-Host "`n==================== EXECUTION SUMMARY ====================" -ForegroundColor Cyan
     $results | Format-Table Module, Status, Log -AutoSize
-    $failed = @($results | Where-Object Status -eq "Failed").Count
+    $failed = @($results | Where-Object { $_.Status -in @("Failed", "CompletedWithErrors") }).Count
     if ($failed -gt 0) {
-        Write-Host "$failed module(s) failed with a terminating PowerShell error. Review their logs." -ForegroundColor Red
+        Write-Host "$failed module(s) reported PowerShell errors or failed with a terminating error. Review their logs." -ForegroundColor Red
     } else {
         Write-Host "Modules returned without a terminating PowerShell error. This does not prove every operation succeeded." -ForegroundColor Yellow
     }
