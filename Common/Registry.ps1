@@ -18,10 +18,7 @@ function Set-ProjectRegistryValue {
         [string]$BackupFile
     )
 
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
-    }
-
+    $keyExisted = Test-Path -LiteralPath $Path
     $snapshotKey = Get-ProjectRegistrySnapshotKey -Path $Path -Name $Name
     if (($null -ne $Snapshot) -and -not $Snapshot.ContainsKey($snapshotKey)) {
         $exists = $false
@@ -29,18 +26,20 @@ function Set-ProjectRegistryValue {
         $oldKind = $null
         $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
         $key = $null
-        try {
-            $key = Get-Item -LiteralPath $providerPath -ErrorAction Stop
-            $exists = $key.GetValueNames() -contains $Name
-            if ($exists) {
-                $oldValue = $key.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-                $oldKind = [string]$key.GetValueKind($Name)
+        if ($keyExisted) {
+            try {
+                $key = Get-Item -LiteralPath $providerPath -ErrorAction Stop
+                $exists = $key.GetValueNames() -contains $Name
+                if ($exists) {
+                    $oldValue = $key.GetValue($Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                    $oldKind = [string]$key.GetValueKind($Name)
+                }
+            } finally {
+                if ($key -is [System.IDisposable]) { $key.Dispose() }
             }
-        } finally {
-            if ($key -is [System.IDisposable]) { $key.Dispose() }
         }
         $Snapshot[$snapshotKey] = @{
-            Path = $Path; Name = $Name; Exists = $exists
+            Path = $Path; Name = $Name; KeyExisted = $keyExisted; Exists = $exists
             Value = $oldValue; ValueKind = $oldKind
         }
     }
@@ -53,6 +52,9 @@ function Set-ProjectRegistryValue {
         Save-ProjectRegistrySnapshot -Snapshot $Snapshot -Path $BackupFile | Out-Null
     }
 
+    if (-not (Test-Path -LiteralPath $Path)) {
+        New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
+    }
     New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $ValueKind -Force -ErrorAction Stop | Out-Null
     $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
     $verifyKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
@@ -94,6 +96,7 @@ function ConvertTo-ProjectRegistryBackupEntry {
     return [ordered]@{
         Path = [string]$Entry.Path
         Name = [string]$Entry.Name
+        KeyExisted = if ($null -eq $Entry.KeyExisted) { $true } else { [bool]$Entry.KeyExisted }
         Exists = [bool]$Entry.Exists
         ValueKind = $Entry.ValueKind
         Value = $serializedValue
@@ -169,6 +172,7 @@ function Import-ProjectRegistrySnapshot {
         if ($snapshot.ContainsKey($key)) { throw "Registry backup contains duplicate entries." }
         $entry = @{
             Path = [string]$item.Path; Name = [string]$item.Name
+            KeyExisted = if ($null -eq $item.KeyExisted) { $true } else { [bool]$item.KeyExisted }
             Exists = [bool]$item.Exists; Value = $value
             ValueKind = [string]$item.ValueKind
         }
@@ -227,8 +231,12 @@ function Restore-ProjectRegistrySnapshot {
                     if ($registryKey.GetValueNames() -contains $entry.Name) {
                         throw "Registry value still exists after removal."
                     }
+                    $keyIsEmpty = ($registryKey.GetValueNames().Count -eq 0 -and $registryKey.GetSubKeyNames().Count -eq 0)
                 } finally {
                     if ($registryKey -is [System.IDisposable]) { $registryKey.Dispose() }
+                }
+                if (-not $entry.KeyExisted -and $keyIsEmpty) {
+                    Remove-Item -LiteralPath $entry.Path -Force -ErrorAction Stop
                 }
             }
             if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
