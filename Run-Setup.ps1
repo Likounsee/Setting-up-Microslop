@@ -1,3 +1,18 @@
+# Keep diagnostics visible even when an unexpected terminating error occurs before the summary.
+trap {
+    $fatalError = $_
+    Write-Host "`n[FATAL SETUP ERROR]" -ForegroundColor Red
+    Write-Host ($fatalError | Out-String) -ForegroundColor Red
+    if ($fatalError.InvocationInfo -and $fatalError.InvocationInfo.PositionMessage) {
+        Write-Host $fatalError.InvocationInfo.PositionMessage -ForegroundColor Yellow
+    }
+    if ($fatalError.ScriptStackTrace) {
+        Write-Host "Stack trace:" -ForegroundColor Yellow
+        Write-Host $fatalError.ScriptStackTrace -ForegroundColor Yellow
+    }
+    try { Read-Host "`nAn unexpected error occurred. Press Enter to close" | Out-Null } catch {}
+    exit 1
+}
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -Wait
@@ -91,11 +106,21 @@ try {
             $results += [pscustomobject]@{ Module = $sel.File; Status = "Returned"; Log = $moduleLog; Error = "" }
             if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level INFO -Message ("Module returned: " + $sel.File) }
         } catch {
-            $errorText = $_ | Out-String
-            Write-Host "[ERROR] $($sel.File): $errorText" -ForegroundColor Red
-            Add-Content -LiteralPath $moduleLog -Value "`n[ORCHESTRATOR ERROR] $errorText" -ErrorAction SilentlyContinue
-            $results += [pscustomobject]@{ Module = $sel.File; Status = "Failed"; Log = $moduleLog; Error = $errorText.Trim() }
-            if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level ERROR -Message ("Module failed: " + $sel.File + " :: " + $errorText.Trim()) }
+            $errorRecord = $_
+            $errorText = $errorRecord | Out-String
+            $diagnostic = @(
+                "Module: $($sel.File)",
+                "Exception type: $($errorRecord.Exception.GetType().FullName)",
+                "Message: $($errorRecord.Exception.Message)"
+            )
+            if ($errorRecord.FullyQualifiedErrorId) { $diagnostic += "FullyQualifiedErrorId: $($errorRecord.FullyQualifiedErrorId)" }
+            if ($errorRecord.InvocationInfo -and $errorRecord.InvocationInfo.PositionMessage) { $diagnostic += $errorRecord.InvocationInfo.PositionMessage }
+            if ($errorRecord.ScriptStackTrace) { $diagnostic += "Stack trace:`n$($errorRecord.ScriptStackTrace)" }
+            $diagnosticText = $diagnostic -join [Environment]::NewLine
+            Write-Host "[ERROR] $diagnosticText" -ForegroundColor Red
+            Add-Content -LiteralPath $moduleLog -Value ("`n[ORCHESTRATOR ERROR]`n" + $diagnosticText + "`nOriginal error record:`n" + $errorText) -ErrorAction SilentlyContinue
+            $results += [pscustomobject]@{ Module = $sel.File; Status = "Failed"; Log = $moduleLog; Error = $diagnosticText }
+            if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) { Write-ProjectLog -Level ERROR -Message ("Module failed: " + $diagnosticText) }
         }
         $step++
     }
