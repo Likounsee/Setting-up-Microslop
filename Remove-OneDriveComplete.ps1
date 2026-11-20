@@ -16,6 +16,9 @@ $registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
 if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
 . $registryScript
 $registrySnapshot = @{}
+$registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+$registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Complete OneDrive Removal & Local Folder Restoration ===" -ForegroundColor Cyan
 
@@ -34,7 +37,7 @@ Write-Host "[3/4] Restoring Desktop, Documents, Pictures, Music & Videos locally
 $shellKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
 @{ "Desktop" = "$env:USERPROFILE\Desktop"; "Personal" = "$env:USERPROFILE\Documents"; "My Pictures" = "$env:USERPROFILE\Pictures"; "My Music" = "$env:USERPROFILE\Music"; "My Video" = "$env:USERPROFILE\Videos" }.GetEnumerator() | ForEach-Object {
     if (-not (Test-Path $_.Value)) { New-Item -Path $_.Value -ItemType Directory -Force | Out-Null }
-    Set-ProjectRegistryValue -Path $shellKey -Name $_.Key -Value $_.Value -ValueKind ExpandString -Snapshot $registrySnapshot
+    Set-ProjectRegistryValue -Path $shellKey -Name $_.Key -Value $_.Value -ValueKind ExpandString -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 }
 
 Write-ProjectLog -Level INFO -Message "Cleaning residual OneDrive folders and blocking reinstallation"
@@ -48,7 +51,7 @@ if (Test-Path "$env:USERPROFILE\OneDrive") {
 }
 $odPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive"
 New-Item -Path $odPolicy -Force | Out-Null
-Set-ProjectRegistryValue -Path $odPolicy -Name "DisableFileSyncNGSC" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $odPolicy -Name "DisableFileSyncNGSC" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 Remove-Item -Path "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" -Recurse -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
@@ -56,7 +59,7 @@ if ($registrySnapshot.Count -gt 0) {
     $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
     $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
     $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
     Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
