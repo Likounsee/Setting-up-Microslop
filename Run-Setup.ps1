@@ -15,8 +15,14 @@ trap {
 }
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -Wait
-    exit $LASTEXITCODE
+    try {
+        $elevatedProcess = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -Wait -PassThru -ErrorAction Stop
+        exit $elevatedProcess.ExitCode
+    } catch {
+        Write-Host "Could not start the elevated setup process: $($_.Exception.Message)" -ForegroundColor Red
+        try { Read-Host "Press Enter to close" | Out-Null } catch {}
+        exit 1
+    }
 }
 
 $ErrorActionPreference = "Stop"
