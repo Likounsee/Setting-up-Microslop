@@ -7,8 +7,9 @@ Write-Host "[1/4] Stopping Xbox & Game Bar processes..." -ForegroundColor Yellow
 
 Write-Host "[2/4] Uninstalling Xbox apps while preserving XboxIdentityProvider..." -ForegroundColor Yellow
 @("Microsoft.GamingApp", "Microsoft.XboxApp", "Microsoft.XboxGameOverlay", "Microsoft.XboxGamingOverlay", "Microsoft.XboxSpeechToTextOverlay", "Microsoft.Xbox.TCUI") | ForEach-Object {
-    Get-AppxPackage -AllUsers -Name $_ | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $_ } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
+    $packageName = $_
+    Get-AppxPackage -AllUsers -Name $packageName | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+    Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $packageName } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
 }
 
 Write-Host "[3/4] Disabling Game Bar DVR, pop-ups, and ms-gamebar protocol prompts..." -ForegroundColor Yellow
