@@ -183,7 +183,7 @@ Describe "Project registry helpers" {
                 Version = 3
                 Entries = @()
                 KeyTrees = @(@{
-                    Path = "HKCU:\\Software\\..\\Run"
+                    Path = "HKCU:\Software\..\Run"
                     ExpectedAbsent = $true
                     Nodes = @(@{ RelativePath = ""; Values = @() })
                 })
@@ -207,7 +207,7 @@ Describe "Project registry helpers" {
                     ExpectedAbsent = $true
                     Nodes = @(
                         @{ RelativePath = ""; Values = @() },
-                        @{ RelativePath = "..\\OtherKey"; Values = @() }
+                        @{ RelativePath = "..\OtherKey"; Values = @() }
                     )
                 })
             }
