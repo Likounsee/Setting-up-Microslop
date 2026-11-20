@@ -57,3 +57,44 @@ function Complete-ProjectLogging {
     )
     Write-ProjectLog -Level INFO -Message $Message
 }
+
+function Invoke-ProjectNativeCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+
+        [string[]]$ArgumentList = @(),
+        [int[]]$AllowedExitCodes = @(0),
+        [switch]$ContinueOnError
+    )
+
+    Write-ProjectLog -Level INFO -Message ("Starting external command: {0} {1}" -f $FilePath, ($ArgumentList -join " "))
+    try {
+        $output = & $FilePath @ArgumentList 2>&1
+        $exitCode = $LASTEXITCODE
+        foreach ($line in $output) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+                Write-ProjectLog -Level INFO -Message ([string]$line)
+            }
+        }
+    } catch {
+        Write-ProjectLog -Level ERROR -Message ("Could not execute '{0}': {1}" -f $FilePath, $_.Exception.Message)
+        if (-not $ContinueOnError) { throw }
+        return 1
+    }
+
+    if ($AllowedExitCodes -notcontains $exitCode) {
+        $message = "External command failed with exit code ${exitCode}: $FilePath"
+        if ($ContinueOnError) {
+            Write-ProjectLog -Level WARNING -Message $message
+        } else {
+            Write-ProjectLog -Level ERROR -Message $message
+            throw $message
+        }
+    } else {
+        Write-ProjectLog -Level INFO -Message ("External command completed with exit code {0}: {1}" -f $exitCode, $FilePath)
+    }
+
+    return $exitCode
+}
