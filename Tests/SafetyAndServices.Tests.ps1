@@ -69,7 +69,7 @@ Describe "Restore-ProjectServiceStates" {
     It "restarts only services that were running before maintenance" {
         $wasRunning = @{ wuauserv = $true; bits = $false; dosvc = $true }
 
-        Restore-ProjectServiceStates -WasRunning $wasRunning -ServiceNames @("wuauserv", "bits", "dosvc")
+        (Restore-ProjectServiceStates -WasRunning $wasRunning -ServiceNames @("wuauserv", "bits", "dosvc")) | Should -BeTrue
 
         $script:startedServices | Should -HaveCount 2
         $script:startedServices | Should -Contain "wuauserv"
@@ -86,8 +86,7 @@ Describe "Restore-ProjectServiceStates" {
     It "continues when restoring one service fails" {
         $script:failServiceName = "wuauserv"
         $wasRunning = @{ wuauserv = $true; bits = $true }
-        Restore-ProjectServiceStates -WasRunning $wasRunning -ServiceNames @("wuauserv", "bits")
-
+        (Restore-ProjectServiceStates -WasRunning $wasRunning -ServiceNames @("wuauserv", "bits")) | Should -BeFalse
         $script:startedServices | Should -Contain "bits"
     }
 }
@@ -118,4 +117,14 @@ Describe "Persistent service-state backups" {
             Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
         }
     }
+    It "rejects invalid service names before writing a backup" {
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-services-invalid-name-" + [guid]::NewGuid().ToString("N") + ".json")
+        try {
+            { Save-ProjectServiceSnapshot -WasRunning @{ "Bad/Service" = $true } -Path $backupPath } | Should -Throw
+            Test-Path -LiteralPath $backupPath | Should -BeFalse
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
 }
