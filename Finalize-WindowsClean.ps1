@@ -12,6 +12,9 @@ trap {
     }
     throw
 }
+$serviceStateScript = Join-Path $PSScriptRoot "Common\ServiceState.ps1"
+if (-not (Test-Path -LiteralPath $serviceStateScript)) { throw "Service-state helpers not found: $serviceStateScript" }
+. $serviceStateScript
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Final Tweaks (Privacy, File Extensions, 1:1 Mouse & Disk Cleanup) ===" -ForegroundColor Cyan
 
@@ -63,9 +66,7 @@ try {
         }
     }
 } finally {
-    foreach ($name in $serviceNames) {
-        if ($serviceWasRunning[$name]) { Start-Service -Name $name -ErrorAction SilentlyContinue }
-    }
+    Restore-ProjectServiceStates -WasRunning $serviceWasRunning -ServiceNames $serviceNames
 }
 Invoke-ProjectNativeCommand -FilePath "Dism.exe" -ArgumentList @("/Online", "/Cleanup-Image", "/StartComponentCleanup") -ContinueOnError | Out-Null
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
