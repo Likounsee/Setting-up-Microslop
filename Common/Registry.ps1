@@ -129,7 +129,7 @@ function Remove-ProjectRegistryKeyTree {
             }
         }
         $treeNode = [ordered]@{ RelativePath = $RelativePath; Values = $values }
-        $tree.Add($treeNode)
+        $null = $tree.Add($treeNode)
         foreach ($subName in $Key.GetSubKeyNames()) {
             $child = $Key.OpenSubKey($subName, $false)
             if ($null -ne $child) {
