@@ -175,4 +175,47 @@ Describe "Project registry helpers" {
         }
     }
 
+    It "rejects registry backup paths that attempt to escape their hive" {
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-unsafe-" + [guid]::NewGuid().ToString("N") + ".json")
+        try {
+            $document = @{
+                Format = "Microslop.RegistryBackup"
+                Version = 3
+                Entries = @()
+                KeyTrees = @(@{
+                    Path = "HKCU:\\Software\\..\\Run"
+                    ExpectedAbsent = $true
+                    Nodes = @(@{ RelativePath = ""; Values = @() })
+                })
+            }
+            $document | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $backupPath
+            { Import-ProjectRegistrySnapshot -Path $backupPath } | Should -Throw
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "rejects registry key-tree relative paths that escape the backed-up root" {
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-unsafe-tree-" + [guid]::NewGuid().ToString("N") + ".json")
+        try {
+            $document = @{
+                Format = "Microslop.RegistryBackup"
+                Version = 3
+                Entries = @()
+                KeyTrees = @(@{
+                    Path = $script:testRegistryPath
+                    ExpectedAbsent = $true
+                    Nodes = @(
+                        @{ RelativePath = ""; Values = @() },
+                        @{ RelativePath = "..\\OtherKey"; Values = @() }
+                    )
+                })
+            }
+            $document | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $backupPath
+            { Import-ProjectRegistrySnapshot -Path $backupPath } | Should -Throw
+        } finally {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
 }
