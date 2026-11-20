@@ -64,6 +64,7 @@ Describe "Restore-ProjectServiceStates" {
             if ($Name -eq $script:failServiceName) { throw "simulated service error" }
             $script:startedServices += $Name
         }
+        Mock Get-Service { [pscustomobject]@{ Name = $Name; Status = 'Stopped' } }
     }
 
     It "restarts only services that were running before maintenance" {
@@ -75,6 +76,13 @@ Describe "Restore-ProjectServiceStates" {
         $script:startedServices | Should -Contain "wuauserv"
         $script:startedServices | Should -Contain "dosvc"
         $script:startedServices | Should -Not -Contain "bits"
+    }
+
+
+    It "does not restart a service that is already running" {
+        Mock Get-Service { [pscustomobject]@{ Name = $Name; Status = 'Running' } }
+        (Restore-ProjectServiceStates -WasRunning @{ wuauserv = $true } -ServiceNames @("wuauserv")) | Should -BeTrue
+        Should -Invoke Start-Service -Times 0 -Exactly
     }
 
     It "does not start services absent from the original-state snapshot" {
