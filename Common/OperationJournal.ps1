@@ -94,7 +94,7 @@ function Invoke-ProjectTrackedNativeCommand {
         $status = if ($AllowedExitCodes -contains $exitCode) { "Completed" } else { "Failed" }
         Write-ProjectOperationRecord -JournalPath $JournalPath -Operation $Operation -Category $Category -Status $status -Target $Target -Details $commandText -ExitCode $exitCode | Out-Null
         if (($AllowedExitCodes -notcontains $exitCode) -and (-not $ContinueOnError)) {
-            throw "Tracked external command failed with exit code $exitCode: $FilePath"
+            throw "Tracked external command failed with exit code ${exitCode}: $FilePath"
         }
         return $exitCode
     } catch {
