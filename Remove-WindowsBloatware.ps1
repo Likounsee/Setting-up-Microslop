@@ -23,7 +23,7 @@ $registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
 $registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
-$filesystemBackupDirectory = Join-Path $PSScriptRoot "Backups\\FileSystem"
+$filesystemBackupDirectory = Join-Path $PSScriptRoot "Backups\FileSystem"
 Write-Host "=== Killing Processes & Full Removal (Binaries + Data/Caches) ===" -ForegroundColor Cyan
 
 Write-ProjectLog -Level INFO -Message "Stopping background processes"
