@@ -19,10 +19,9 @@ $registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
 if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
 . $registryScript
 $registrySnapshot = @{}
-$registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
-if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
-. $registryScript
-$registrySnapshot = @{}
+$registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+$registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Killing Processes & Full Removal (Binaries + Data/Caches) ===" -ForegroundColor Cyan
 
@@ -36,16 +35,16 @@ Write-ProjectLog -Level INFO -Message "Disabling Windows Recall and Copilot"
 Write-Host "[2/5] Disabling Windows Recall and Copilot..." -ForegroundColor Yellow
 Disable-WindowsOptionalFeature -Online -FeatureName "Recall" -NoRestart -ErrorAction SilentlyContinue | Out-Null
 $aiPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"; New-Item -Path $aiPolicy -Force | Out-Null
-Set-ProjectRegistryValue -Path $aiPolicy -Name "DisableAIDataAnalysis" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $aiPolicy -Name "TurnOffSavingSnapshots" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $aiPolicy -Name "DisableAIDataAnalysis" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $aiPolicy -Name "TurnOffSavingSnapshots" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $copPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot"; New-Item -Path $copPolicy -Force | Out-Null
-Set-ProjectRegistryValue -Path $copPolicy -Name "TurnOffWindowsCopilot" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $copPolicy -Name "TurnOffWindowsCopilot" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $copUser = "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot"; New-Item -Path $copUser -Force | Out-Null
-Set-ProjectRegistryValue -Path $copUser -Name "TurnOffWindowsCopilot" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $copUser -Name "TurnOffWindowsCopilot" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $dshPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Dsh"; New-Item -Path $dshPolicy -Force | Out-Null
-Set-ProjectRegistryValue -Path $dshPolicy -Name "AllowNewsAndInterests" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $dshPolicy -Name "AllowNewsAndInterests" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 
 Write-ProjectLog -Level INFO -Message "Uninstalling bloatware apps and purging AppData folders"
 Write-Host "[3/5] Uninstalling bloatware apps and purging AppData folders..." -ForegroundColor Yellow
@@ -64,18 +63,18 @@ Write-ProjectLog -Level INFO -Message "Blocking sponsored suggestions"
 Write-Host "[5/5] Blocking sponsored suggestions..." -ForegroundColor Yellow
 $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"; New-Item -Path $cdm -Force | Out-Null
 @("ContentDeliveryAllowed", "FeatureManagementEnabled", "OemPreInstalledAppsEnabled", "PreInstalledAppsEnabled", "PreInstalledAppsEverEnabled", "SilentInstalledAppsEnabled", "SoftLandingEnabled", "SubscribedContent-310093Enabled", "SubscribedContent-338387Enabled", "SubscribedContent-338388Enabled", "SubscribedContent-338389Enabled", "SubscribedContent-338393Enabled", "SubscribedContent-353694Enabled", "SubscribedContent-353696Enabled", "SystemPaneSuggestionsEnabled") | ForEach-Object {
-    Set-ProjectRegistryValue -Path $cdm -Name $_ -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+    Set-ProjectRegistryValue -Path $cdm -Name $_ -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 }
 $cc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"; New-Item -Path $cc -Force | Out-Null
-Set-ProjectRegistryValue -Path $cc -Name "DisableWindowsConsumerFeatures" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $cc -Name "DisableSoftLanding" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_IrisRecommendations" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $cc -Name "DisableWindowsConsumerFeatures" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $cc -Name "DisableSoftLanding" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_IrisRecommendations" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
 if ($registrySnapshot.Count -gt 0) {
     $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
     $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
     $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
     Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
