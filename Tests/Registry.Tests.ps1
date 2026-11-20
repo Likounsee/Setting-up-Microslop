@@ -94,6 +94,7 @@ Describe "Project registry helpers" {
         $snapshot = @{}
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-conflict-" + [guid]::NewGuid().ToString("N") + ".json")
         try {
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "before" -ValueKind String | Should -BeTrue
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "script-value" -ValueKind String -Snapshot $snapshot | Should -BeTrue
             Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Out-Null
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "ConflictValue" -Value "user-value" -ValueKind String | Should -BeTrue
