@@ -110,4 +110,20 @@ Describe "Project registry helpers" {
         }
     }
 
+    It "removes a registry key that the module created when rolling back its only value" {
+        $newKeyPath = "HKCU:\Software\Microslop-Pester-NewKey-" + [guid]::NewGuid().ToString("N")
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-newkey-" + [guid]::NewGuid().ToString("N") + ".json")
+        $snapshot = @{}
+        try {
+            Set-ProjectRegistryValue -Path $newKeyPath -Name "Temporary" -Value 1 -ValueKind DWord -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
+            (Test-Path -LiteralPath $newKeyPath) | Should -BeTrue
+            $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
+            (Test-Path -LiteralPath $newKeyPath) | Should -BeFalse
+        } finally {
+            Remove-Item -LiteralPath $newKeyPath -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
 }
