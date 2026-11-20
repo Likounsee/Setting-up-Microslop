@@ -78,9 +78,6 @@ function Set-ProjectRegistryValue {
         Save-ProjectRegistrySnapshot -Snapshot $Snapshot -Path $BackupFile | Out-Null
     }
 
-    if (-not (Test-Path -LiteralPath $Path)) {
-        New-Item -Path $Path -Force -ErrorAction Stop | Out-Null
-    }
     if (-not (Test-ProjectRegistryPath -Path $Path)) {
         throw "Unsupported or unsafe registry path for writing: $Path"
     }
@@ -88,8 +85,6 @@ function Set-ProjectRegistryValue {
     if (-not $pathMatch.Success) { throw "Unsupported registry path: $Path" }
     $hiveName = $pathMatch.Groups[1].Value
     $subKeyPath = $pathMatch.Groups[2].Value
-    $hiveName = $matches[1]
-    $subKeyPath = $matches[2]
     $registryBaseKey = switch ($hiveName) {
         'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }
         'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }
