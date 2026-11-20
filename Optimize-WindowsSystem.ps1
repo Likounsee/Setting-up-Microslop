@@ -32,18 +32,22 @@ Set-ItemProperty -Path $do1 -Name "DODownloadMode" -Value 0 -Type DWord
 $do2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config"; New-Item -Path $do2 -Force | Out-Null
 Set-ItemProperty -Path $do2 -Name "DODownloadMode" -Value 0 -Type DWord
 
-Write-Host "[3/5] Disabling SysMain (Superfetch)..." -ForegroundColor Yellow
-if (Get-Service -Name "SysMain" -ErrorAction SilentlyContinue) {
-    Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
-    Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\SysMain" -Name "Start" -Value 4 -Type DWord
-}
+Write-Host "[3/5] Optional SysMain change..." -ForegroundColor Yellow
+if ((Read-Host "Disable SysMain? This can reduce performance on some PCs. [y/N]").Trim() -match "^(?i)y(es)?$") {
+    if (Get-Service -Name "SysMain" -ErrorAction SilentlyContinue) {
+        Stop-Service -Name "SysMain" -Force -ErrorAction Stop
+        Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction Stop
+    }
+} else { Write-Host "SysMain left unchanged." -ForegroundColor Gray }
 
-Write-Host "[4/5] Disabling Hibernation and Fast Startup..." -ForegroundColor Yellow
-powercfg.exe /hibernate off 2>$null
-if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power") {
-    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord
-}
+Write-Host "[4/5] Optional hibernation / Fast Startup change..." -ForegroundColor Yellow
+if ((Read-Host "Disable hibernation and Fast Startup? [y/N]").Trim() -match "^(?i)y(es)?$") {
+    powercfg.exe /hibernate off
+    if ($LASTEXITCODE -ne 0) { throw "powercfg /hibernate off failed with exit code $LASTEXITCODE" }
+    if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power") {
+        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord
+    }
+} else { Write-Host "Hibernation left unchanged." -ForegroundColor Gray }
 
 Write-Host "[5/5] Configuring power plan based on form factor..." -ForegroundColor Yellow
 $chassis = (Get-CimInstance -ClassName Win32_SystemEnclosure).ChassisTypes
