@@ -40,6 +40,13 @@ if (Test-Path -LiteralPath $sharedLogger) {
     Write-Warning "Shared logger not found at $sharedLogger"
 }
 
+$setupDiagnostics = Join-Path $PSScriptRoot "Common\SetupDiagnostics.ps1"
+if (Test-Path -LiteralPath $setupDiagnostics) {
+    . $setupDiagnostics
+} else {
+    throw "Required diagnostics helper not found: $setupDiagnostics"
+}
+
 
 $modules = @(
     @{ File = "Remove-EdgeKeepWebView.ps1"; Title = "Remove Microsoft Edge"; Description = "Uninstalls Edge and blocks reinstallation while keeping WebView2 Runtime updated." },
@@ -117,7 +124,7 @@ try {
                 Tee-Object -FilePath $moduleLog -Append
 
             # A script can return normally while still emitting non-terminating errors.
-            $moduleErrors = @($moduleOutput | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
+            $moduleErrors = @(Get-ProjectErrorRecords -Output $moduleOutput.ToArray())
             if ($moduleErrors.Count -gt 0) {
                 $errorText = ($moduleErrors | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
                 Write-Host "[WARN] $($sel.File) returned with $($moduleErrors.Count) PowerShell error record(s)." -ForegroundColor Yellow
@@ -130,15 +137,7 @@ try {
         } catch {
             $errorRecord = $_
             $errorText = $errorRecord | Out-String
-            $diagnostic = @(
-                "Module: $($sel.File)",
-                "Exception type: $($errorRecord.Exception.GetType().FullName)",
-                "Message: $($errorRecord.Exception.Message)"
-            )
-            if ($errorRecord.FullyQualifiedErrorId) { $diagnostic += "FullyQualifiedErrorId: $($errorRecord.FullyQualifiedErrorId)" }
-            if ($errorRecord.InvocationInfo -and $errorRecord.InvocationInfo.PositionMessage) { $diagnostic += $errorRecord.InvocationInfo.PositionMessage }
-            if ($errorRecord.ScriptStackTrace) { $diagnostic += "Stack trace:`n$($errorRecord.ScriptStackTrace)" }
-            $diagnosticText = $diagnostic -join [Environment]::NewLine
+            $diagnosticText = Format-ProjectErrorRecord -ErrorRecord $errorRecord -ModuleName $sel.File
             Write-Host "[ERROR] $diagnosticText" -ForegroundColor Red
             Add-Content -LiteralPath $moduleLog -Value ("`n[ORCHESTRATOR ERROR]`n" + $diagnosticText + "`nOriginal error record:`n" + $errorText) -ErrorAction SilentlyContinue
             $results += [pscustomobject]@{ Module = $sel.File; Status = "Failed"; Log = $moduleLog; Error = $diagnosticText }
