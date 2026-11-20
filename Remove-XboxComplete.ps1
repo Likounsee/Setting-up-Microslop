@@ -20,6 +20,22 @@ $registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
 $registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
+$operationJournalScript = Join-Path $PSScriptRoot "Common\OperationJournal.ps1"
+if (-not (Test-Path -LiteralPath $operationJournalScript)) { throw "Operation journal helpers not found: $operationJournalScript" }
+. $operationJournalScript
+$appxRecoveryScript = Join-Path $PSScriptRoot "Common\AppxRecovery.ps1"
+if (-not (Test-Path -LiteralPath $appxRecoveryScript)) { throw "Appx recovery helpers not found: $appxRecoveryScript" }
+. $appxRecoveryScript
+$operationJournalDirectory = Join-Path $PSScriptRoot "Backups\Operations"
+$operationJournalName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$operationJournalFile = Join-Path $operationJournalDirectory $operationJournalName
+$appxInventoryDirectory = Join-Path $PSScriptRoot "Backups\Appx"
+$appxInventoryName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$appxInventoryFile = Join-Path $appxInventoryDirectory $appxInventoryName
+$installedAppxPackages = @(Get-AppxPackage -AllUsers)
+$provisionedAppxPackages = @(Get-AppxProvisionedPackage -Online)
+Save-ProjectAppxInventory -InstalledPackages $installedAppxPackages -ProvisionedPackages $provisionedAppxPackages -Path $appxInventoryFile | Out-Null
+Write-Host "Appx inventory saved: $appxInventoryFile" -ForegroundColor Cyan
 Write-Host "=== Removing Xbox Bloatware & Game Bar (Keeping Minecraft Auth Ready) ===" -ForegroundColor Cyan
 
 Write-ProjectLog -Level INFO -Message "Stopping Xbox & Game Bar processes"
@@ -30,8 +46,12 @@ Write-ProjectLog -Level INFO -Message "Uninstalling Xbox apps while preserving X
 Write-Host "[2/4] Uninstalling Xbox apps while preserving XboxIdentityProvider..." -ForegroundColor Yellow
 @("Microsoft.GamingApp", "Microsoft.XboxApp", "Microsoft.XboxGameOverlay", "Microsoft.XboxGamingOverlay", "Microsoft.XboxSpeechToTextOverlay", "Microsoft.Xbox.TCUI") | ForEach-Object {
     $packageName = $_
-    Get-AppxPackage -AllUsers -Name $packageName | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-    Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $packageName } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
+    Get-AppxPackage -AllUsers -Name $packageName | ForEach-Object {
+        Invoke-ProjectAppxPackageRemoval -Package $_ -PackageType Installed -JournalPath $operationJournalFile | Out-Null
+    }
+    Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq $packageName } | ForEach-Object {
+        Invoke-ProjectAppxPackageRemoval -Package $_ -PackageType Provisioned -JournalPath $operationJournalFile | Out-Null
+    }
 }
 
 Write-ProjectLog -Level INFO -Message "Disabling Game Bar DVR, pop-ups, and ms-gamebar protocol prompts"
