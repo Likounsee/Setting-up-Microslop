@@ -23,6 +23,7 @@ $registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
 $registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
+$filesystemBackupDirectory = Join-Path $PSScriptRoot "Backups\\FileSystem"
 Write-Host "=== Killing Processes & Full Removal (Binaries + Data/Caches) ===" -ForegroundColor Cyan
 
 Write-ProjectLog -Level INFO -Message "Stopping background processes"
@@ -52,7 +53,7 @@ $patterns = @("*Copilot*", "*Client.AIX*", "*Client.WebExperience*", "*Clipchamp
 foreach ($p in $patterns) {
     Get-AppxPackage -AllUsers -Name $p | Where-Object { $_.NonRemovable -eq $false -and $_.InstallLocation -notlike "*\SystemApps\*" } | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
     Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like $p } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
-    Get-ChildItem -Path "$env:LOCALAPPDATA\Packages" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-ProjectPackageDirectory -TargetPath $_.FullName -PackagesRoot (Join-Path $env:LOCALAPPDATA "Packages") | Out-Null }
+    Get-ChildItem -Path "$env:LOCALAPPDATA\Packages" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-ProjectPackageDirectory -TargetPath $_.FullName -PackagesRoot (Join-Path $env:LOCALAPPDATA "Packages") -BackupDirectory $filesystemBackupDirectory | Out-Null }
 }
 
 Write-ProjectLog -Level INFO -Message "Skipping broad residual-folder deletion"
