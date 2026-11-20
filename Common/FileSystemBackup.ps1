@@ -83,10 +83,8 @@ function Backup-ProjectPackageDirectory {
         }
         return $backupRoot
     } catch {
-        if (Test-Path -LiteralPath $target) {
-            # Keep the original if deletion failed; the verified copy is safe to discard.
-            Remove-Item -LiteralPath $backupRoot -Recurse -Force -ErrorAction SilentlyContinue
-        }
+        # Never discard the verified copy on failure: Remove-Item may have partially
+        # deleted the source before reporting an error.
         throw
     }
 }
@@ -137,6 +135,18 @@ function Restore-ProjectFileSystemBackup {
         }
         New-Item -ItemType Directory -Path ([System.IO.Path]::GetDirectoryName($destination)) -Force -ErrorAction Stop | Out-Null
         Copy-Item -LiteralPath $source -Destination $destination -Recurse -Force -ErrorAction Stop
+        $restoredFiles = Get-ProjectTreeFileManifest -Root $destination
+        if ($restoredFiles.Count -ne $expected.Count) {
+            Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue
+            throw "Restore verification failed: file count differs."
+        }
+        foreach ($file in $expected) {
+            $restoredFile = $restoredFiles | Where-Object { [string]::Equals($_.RelativePath, [string]$file.RelativePath, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+            if ($null -eq $restoredFile -or $restoredFile.Length -ne [long]$file.Length -or $restoredFile.SHA256 -ne [string]$file.SHA256) {
+                Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue
+                throw "Restore verification failed for: $($file.RelativePath)"
+            }
+        }
         $restored++
         if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
             Write-ProjectLog -Level INFO -Message "Restored package directory from verified backup: $destination"
