@@ -53,6 +53,10 @@ function Set-ProjectRegistryValue {
     }
     if (-not $matches) { throw "Registry verification failed for '$Path\$Name'." }
 
+    if ($null -ne $Snapshot -and $Snapshot.ContainsKey($snapshotKey)) {
+        $Snapshot[$snapshotKey].CurrentValue = $Value
+        $Snapshot[$snapshotKey].CurrentValueKind = $ValueKind
+    }
     if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
         Write-ProjectLog -Level INFO -Message ("Registry value verified: {0}\{1} ({2})" -f $Path, $Name, $ValueKind)
     }
@@ -68,12 +72,21 @@ function ConvertTo-ProjectRegistryBackupEntry {
     } elseif ($Entry.Exists -and $Entry.ValueKind -eq 'MultiString') {
         $serializedValue = @($Entry.Value)
     }
+    $expectedValue = $Entry.CurrentValue
+    if ($null -ne $Entry.CurrentValueKind -and $Entry.CurrentValueKind -eq 'Binary') {
+        $expectedValue = [Convert]::ToBase64String([byte[]]$Entry.CurrentValue)
+    } elseif ($null -ne $Entry.CurrentValueKind -and $Entry.CurrentValueKind -eq 'MultiString') {
+        $expectedValue = @($Entry.CurrentValue)
+    }
     return [ordered]@{
         Path = [string]$Entry.Path
         Name = [string]$Entry.Name
         Exists = [bool]$Entry.Exists
         ValueKind = $Entry.ValueKind
         Value = $serializedValue
+        ExpectedExists = ($null -ne $Entry.CurrentValueKind)
+        ExpectedValueKind = $Entry.CurrentValueKind
+        ExpectedValue = $expectedValue
     }
 }
 
@@ -96,7 +109,7 @@ function Save-ProjectRegistrySnapshot {
     }
     $document = [ordered]@{
         Format = 'Microslop.RegistryBackup'
-        Version = 1
+        Version = 2
         CreatedUtc = [DateTime]::UtcNow.ToString('o')
         Entries = $entries
     }
@@ -122,7 +135,7 @@ function Import-ProjectRegistrySnapshot {
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Registry backup file not found: $Path" }
     $document = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-    if ($document.Format -ne 'Microslop.RegistryBackup' -or $document.Version -ne 1 -or $null -eq $document.Entries) {
+    if ($document.Format -ne 'Microslop.RegistryBackup' -or $document.Version -notin @(1, 2) -or $null -eq $document.Entries) {
         throw "Unsupported or invalid registry backup format."
     }
 
@@ -141,22 +154,56 @@ function Import-ProjectRegistrySnapshot {
         }
         $key = Get-ProjectRegistrySnapshotKey -Path ([string]$item.Path) -Name ([string]$item.Name)
         if ($snapshot.ContainsKey($key)) { throw "Registry backup contains duplicate entries." }
-        $snapshot[$key] = @{
+        $entry = @{
             Path = [string]$item.Path; Name = [string]$item.Name
             Exists = [bool]$item.Exists; Value = $value
             ValueKind = [string]$item.ValueKind
         }
+        if ($document.Version -ge 2 -and $item.ExpectedExists) {
+            $expected = $item.ExpectedValue
+            if ($item.ExpectedValueKind -eq 'Binary') {
+                $expected = [Convert]::FromBase64String([string]$item.ExpectedValue)
+            } elseif ($item.ExpectedValueKind -eq 'MultiString') {
+                $expected = [string[]]@($item.ExpectedValue)
+            }
+            $entry.CurrentValue = $expected
+            $entry.CurrentValueKind = [string]$item.ExpectedValueKind
+        }
+        $snapshot[$key] = $entry
     }
     return ,$snapshot
 }
 
 function Restore-ProjectRegistrySnapshot {
     [CmdletBinding()]
-    param([Parameter(Mandatory = $true)][hashtable]$Snapshot)
+    param(
+        [Parameter(Mandatory = $true)][hashtable]$Snapshot,
+        [switch]$Force
+    )
 
     $success = $true
     foreach ($entry in $Snapshot.Values) {
         try {
+            if ($null -ne $entry.CurrentValueKind -and -not $Force) {
+                $providerPath = $entry.Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
+                $currentKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
+                try {
+                    $currentlyExists = $currentKey.GetValueNames() -contains $entry.Name
+                    if (-not $currentlyExists) { throw "Registry value changed since backup; restore skipped." }
+                    $currentKind = [string]$currentKey.GetValueKind($entry.Name)
+                    $currentValue = $currentKey.GetValue($entry.Name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                } finally {
+                    if ($currentKey -is [System.IDisposable]) { $currentKey.Dispose() }
+                }
+                $expectedValue = $entry.CurrentValue
+                if ($currentKind -ne $entry.CurrentValueKind) { throw "Registry value type changed since backup; restore skipped." }
+                if ($currentKind -eq 'Binary' -or $currentKind -eq 'MultiString') {
+                    $unchanged = [System.Linq.Enumerable]::SequenceEqual([object[]]$currentValue, [object[]]$expectedValue)
+                } else {
+                    $unchanged = ($currentValue -eq $expectedValue)
+                }
+                if (-not $unchanged) { throw "Registry value changed since backup; restore skipped." }
+            }
             if ($entry.Exists) {
                 Set-ProjectRegistryValue -Path $entry.Path -Name $entry.Name -Value $entry.Value -ValueKind $entry.ValueKind | Out-Null
             } elseif (Test-Path -LiteralPath $entry.Path) {
