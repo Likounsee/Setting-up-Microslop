@@ -50,15 +50,29 @@ foreach ($sel in $selectedModules) { Write-Host "  - $($sel.Title) ($($sel.File)
 Write-Host ""
 if ((Read-Host "Start execution now? [Y/N]").Trim().ToUpper() -ne "Y") { exit 0 }
 
+$results = @()
 $step = 1
 foreach ($sel in $selectedModules) {
     $scriptPath = Join-Path -Path $PSScriptRoot -ChildPath $sel.File
     Write-Host "`n>>> [$step/$($selectedModules.Count)] Running $($sel.File)..." -ForegroundColor Cyan
-    try { & $scriptPath } catch { Write-Host "[ERROR] Failed while running $($sel.File): $_" -ForegroundColor Red }
+    try {
+        & $scriptPath
+        $results += [pscustomobject]@{ Module = $sel.File; Status = "Completed"; Error = "" }
+    } catch {
+        Write-Host "[ERROR] $($sel.File): $_" -ForegroundColor Red
+        $results += [pscustomobject]@{ Module = $sel.File; Status = "Failed"; Error = "$_" }
+    }
     $step++
 }
 
-Write-Host "`n=================================================================" -ForegroundColor Green
-Write-Host " All selected scripts have finished executing! Reboot recommended." -ForegroundColor Green
-Write-Host "=================================================================" -ForegroundColor Green
-Read-Host "`nPress Enter to close and clean up temporary files"
+Write-Host "`n==================== EXECUTION SUMMARY ====================" -ForegroundColor Cyan
+$results | Format-Table -AutoSize
+$failed = @($results | Where-Object Status -eq "Failed").Count
+if ($failed -gt 0) {
+    Write-Host "$failed module(s) failed. Review the errors above." -ForegroundColor Red
+} else {
+    Write-Host "Selected modules returned without a terminating PowerShell error. Verify the resulting Windows behavior." -ForegroundColor Green
+}
+Write-Host "A reboot may be required." -ForegroundColor Yellow
+Read-Host "`nPress Enter to close"
+if ($failed -gt 0) { exit 1 }
