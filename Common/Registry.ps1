@@ -10,7 +10,7 @@ function Set-ProjectRegistryValue {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Name,
         [Parameter(Mandatory = $true)][AllowNull()][object]$Value,
         [ValidateSet('DWord', 'String', 'ExpandString', 'QWord', 'MultiString', 'Binary', 'None')]
         [string]$ValueKind = 'DWord',
