@@ -5,10 +5,12 @@ function Initialize-ProjectLogging {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$ScriptName
+        [string]$ScriptName,
+
+        [string]$LogDirectory = (Join-Path (Get-Location).Path "Logs")
     )
 
-    $logDirectory = Join-Path $PSScriptRoot "Logs"
+    $logDirectory = $LogDirectory
     if (-not (Test-Path -LiteralPath $logDirectory -PathType Container)) {
         New-Item -Path $logDirectory -ItemType Directory -Force -ErrorAction Stop | Out-Null
     }
