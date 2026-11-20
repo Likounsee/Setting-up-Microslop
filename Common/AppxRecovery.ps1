@@ -12,8 +12,8 @@ function Get-ProjectObjectPropertyValue {
 function Save-ProjectAppxInventory {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true)][object[]]$InstalledPackages,
-        [Parameter(Mandatory = $true)][object[]]$ProvisionedPackages,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$InstalledPackages,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$ProvisionedPackages,
         [Parameter(Mandatory = $true)][string]$Path
     )
 
@@ -123,8 +123,8 @@ function Get-ProjectAppxRecoveryPlan {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][object]$Inventory,
-        [Parameter(Mandatory = $true)][object[]]$CurrentInstalledPackages,
-        [Parameter(Mandatory = $true)][object[]]$CurrentProvisionedPackages
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CurrentInstalledPackages,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CurrentProvisionedPackages
     )
 
     $installedNames = @($CurrentInstalledPackages | ForEach-Object { [string](Get-ProjectObjectPropertyValue -InputObject $_ -Name "PackageFullName") })
