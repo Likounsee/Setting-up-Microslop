@@ -78,23 +78,21 @@ if ((Read-Host "Remove temporary entries older than 7 days from approved TEMP fo
     Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Temporary cleanup" -Category Regenerable -Status Skipped -Details "User declined temporary cleanup." | Out-Null
 }
 $serviceNames = @("wuauserv", "bits", "dosvc")
-$serviceWasRunning = @{}
-foreach ($name in $serviceNames) {
-    $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
-    if ($svc) {
-        $serviceWasRunning[$name] = ($svc.Status -eq "Running")
+if ((Read-Host "Clear regenerable Windows Update download caches? [y/N]").Trim() -match "^(?i)y(es)?$") {
+    $serviceWasRunning = @{}
+    foreach ($name in $serviceNames) {
+        $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
+        if ($svc) { $serviceWasRunning[$name] = ($svc.Status -eq "Running") }
     }
-}
-$serviceBackupDirectory = Join-Path $PSScriptRoot "Backups\Services"
-$serviceBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
-$serviceBackupFile = Join-Path $serviceBackupDirectory $serviceBackupName
-Save-ProjectServiceSnapshot -WasRunning $serviceWasRunning -Path $serviceBackupFile | Out-Null
-Write-Host "Service-state backup saved: $serviceBackupFile" -ForegroundColor Cyan
-foreach ($name in $serviceWasRunning.Keys) {
-    if ($serviceWasRunning[$name]) { Stop-Service -Name $name -Force -ErrorAction Stop }
-}
-try {
-    if ((Read-Host "Clear regenerable Windows Update download caches? [y/N]").Trim() -match "^(?i)y(es)?$") {
+    $serviceBackupDirectory = Join-Path $PSScriptRoot "Backups\Services"
+    $serviceBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+    $serviceBackupFile = Join-Path $serviceBackupDirectory $serviceBackupName
+    Save-ProjectServiceSnapshot -WasRunning $serviceWasRunning -Path $serviceBackupFile | Out-Null
+    Write-Host "Service-state backup saved: $serviceBackupFile" -ForegroundColor Cyan
+    try {
+        foreach ($name in $serviceWasRunning.Keys) {
+            if ($serviceWasRunning[$name]) { Stop-Service -Name $name -Force -ErrorAction Stop }
+        }
         foreach ($cachePath in @("$env:SystemRoot\SoftwareDistribution\Download", "$env:SystemRoot\SoftwareDistribution\DeliveryOptimization")) {
             if (Test-Path -LiteralPath $cachePath -PathType Container) {
                 Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Windows Update cache cleanup" -Category Regenerable -Status Started -Target $cachePath -Details "Cache contents are regenerable; contents are not backed up." | Out-Null
@@ -107,11 +105,11 @@ try {
                 }
             }
         }
-    } else {
-        Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Windows Update cache cleanup" -Category Regenerable -Status Skipped -Details "User declined cache cleanup." | Out-Null
+    } finally {
+        Restore-ProjectServiceStates -WasRunning $serviceWasRunning -ServiceNames $serviceNames
     }
-} finally {
-    Restore-ProjectServiceStates -WasRunning $serviceWasRunning -ServiceNames $serviceNames
+} else {
+    Write-ProjectOperationRecord -JournalPath $operationJournalFile -Operation "Windows Update cache cleanup" -Category Regenerable -Status Skipped -Details "User declined cache cleanup; update services were not stopped." | Out-Null
 }
 if ((Read-Host "Run DISM component-store cleanup? This operation is not reversible. [y/N]").Trim() -match "^(?i)y(es)?$") {
     Invoke-ProjectTrackedNativeCommand -FilePath "Dism.exe" -ArgumentList @("/Online", "/Cleanup-Image", "/StartComponentCleanup") -Operation "DISM component-store cleanup" -Category Irreversible -JournalPath $operationJournalFile -Target "$env:SystemRoot\WinSxS" -ContinueOnError | Out-Null
