@@ -50,5 +50,12 @@ Write-Host "[4/4] Setting Xbox auth services to Manual startup for Minecraft com
 @("XblAuthManager", "XblGameSave", "XboxNetApiSvc", "GamingServices", "GamingServicesNet") | ForEach-Object {
     if (Get-Service -Name $_ -ErrorAction SilentlyContinue) { Set-Service -Name $_ -StartupType Manual -ErrorAction SilentlyContinue }
 }
+if ($registrySnapshot.Count -gt 0) {
+    $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+    $backupName = "{0}-{1}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss")
+    $backupPath = Join-Path $backupDirectory $backupName
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
+}
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! Xbox bloatware removed and Game Bar pop-ups neutralized. ===" -ForegroundColor Green
