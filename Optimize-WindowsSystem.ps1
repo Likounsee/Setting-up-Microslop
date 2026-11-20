@@ -12,7 +12,7 @@ trap {
     }
     throw
 }
-$registryScript = Join-Path $PSScriptRoot "Common\\Registry.ps1"
+$registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
 if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
 . $registryScript
 $registrySnapshot = @{}
@@ -25,7 +25,7 @@ Write-Host "[1/5] Disabling telemetry and diagnostic tasks..." -ForegroundColor 
     if (Get-Service -Name $_ -ErrorAction SilentlyContinue) {
         Stop-Service -Name $_ -Force -ErrorAction SilentlyContinue
         Set-Service -Name $_ -StartupType Disabled -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$_" -Name "Start" -Value 4 -Type DWord
+        Set-ProjectRegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$_" -Name "Start" -Value 4 -ValueKind DWord -Snapshot $registrySnapshot
     }
 }
 $dc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"; New-Item -Path $dc -Force | Out-Null
@@ -33,9 +33,9 @@ Set-ProjectRegistryValue -Path $dc -Name "AllowTelemetry" -Value 0 -ValueKind DW
 Set-ProjectRegistryValue -Path $dc -Name "DoNotShowFeedbackNotifications" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
 Set-ProjectRegistryValue -Path $dc -Name "DisableOneSettingsDownloads" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
 New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Force | Out-Null
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -Value 0 -Type DWord
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
 New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Force | Out-Null
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -Type DWord
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
 $sp = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"; New-Item -Path $sp -Force | Out-Null
 Set-ProjectRegistryValue -Path $sp -Name "EnableActivityFeed" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
 Set-ProjectRegistryValue -Path $sp -Name "PublishUserActivities" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
@@ -65,7 +65,7 @@ Write-Host "[4/5] Optional hibernation / Fast Startup change..." -ForegroundColo
 if ((Read-Host "Disable hibernation and Fast Startup? [y/N]").Trim() -match "^(?i)y(es)?$") {
     Invoke-ProjectNativeCommand -FilePath "powercfg.exe" -ArgumentList @("/hibernate", "off") | Out-Null
     if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power") {
-        Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord
+        Set-ProjectRegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
     }
 } else { Write-Host "Hibernation left unchanged." -ForegroundColor Gray }
 
