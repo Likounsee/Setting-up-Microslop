@@ -10,6 +10,22 @@ $ErrorActionPreference = "Stop"
 $OutputEncoding           = [System.Text.Encoding]::UTF8
 Set-Location -Path $PSScriptRoot
 
+# Keep a durable record of the orchestrator and every module's visible output.
+$logRoot = Join-Path $PSScriptRoot "Logs"
+if (-not (Test-Path -LiteralPath $logRoot)) {
+    New-Item -Path $logRoot -ItemType Directory -Force -ErrorAction Stop | Out-Null
+}
+$runId = Get-Date -Format "yyyyMMdd-HHmmss"
+$runLog = Join-Path $logRoot "Setup-$runId.log"
+$transcriptStarted = $false
+try {
+    Start-Transcript -Path $runLog -Append -ErrorAction Stop | Out-Null
+    $transcriptStarted = $true
+} catch {
+    Write-Warning "Could not start transcript logging: $($_.Exception.Message)"
+}
+Write-Host "Log file: $runLog" -ForegroundColor Gray
+
 $modules = @(
     @{ File = "Remove-EdgeKeepWebView.ps1"; Title = "Remove Microsoft Edge"; Description = "Uninstalls Edge and blocks reinstallation while keeping WebView2 Runtime updated." },
     @{ File = "Remove-OneDriveComplete.ps1"; Title = "Complete OneDrive Removal"; Description = "Uninstalls OneDrive, cleans leftovers, and restores Desktop/Documents/Pictures locally." },
@@ -52,27 +68,40 @@ if ((Read-Host "Start execution now? [Y/N]").Trim().ToUpper() -ne "Y") { exit 0 
 
 $results = @()
 $step = 1
-foreach ($sel in $selectedModules) {
-    $scriptPath = Join-Path -Path $PSScriptRoot -ChildPath $sel.File
-    Write-Host "`n>>> [$step/$($selectedModules.Count)] Running $($sel.File)..." -ForegroundColor Cyan
-    try {
-        & $scriptPath
-        $results += [pscustomobject]@{ Module = $sel.File; Status = "Completed"; Error = "" }
-    } catch {
-        Write-Host "[ERROR] $($sel.File): $_" -ForegroundColor Red
-        $results += [pscustomobject]@{ Module = $sel.File; Status = "Failed"; Error = "$_" }
+try {
+    foreach ($sel in $selectedModules) {
+        $scriptPath = Join-Path -Path $PSScriptRoot -ChildPath $sel.File
+        $moduleLog = Join-Path $logRoot ("{0}-{1}.log" -f $runId, [System.IO.Path]::GetFileNameWithoutExtension($sel.File))
+        Write-Host "`n>>> [$step/$($selectedModules.Count)] Running $($sel.File)..." -ForegroundColor Cyan
+        Write-Host "Module log: $moduleLog" -ForegroundColor Gray
+        try {
+            # Capture all output streams that the module actually emits.
+            & $scriptPath *>&1 | Tee-Object -FilePath $moduleLog -Append
+            $results += [pscustomobject]@{ Module = $sel.File; Status = "Returned"; Log = $moduleLog; Error = "" }
+        } catch {
+            $errorText = $_ | Out-String
+            Write-Host "[ERROR] $($sel.File): $errorText" -ForegroundColor Red
+            Add-Content -LiteralPath $moduleLog -Value "`n[ORCHESTRATOR ERROR] $errorText" -ErrorAction SilentlyContinue
+            $results += [pscustomobject]@{ Module = $sel.File; Status = "Failed"; Log = $moduleLog; Error = $errorText.Trim() }
+        }
+        $step++
     }
-    $step++
-}
 
-Write-Host "`n==================== EXECUTION SUMMARY ====================" -ForegroundColor Cyan
-$results | Format-Table -AutoSize
-$failed = @($results | Where-Object Status -eq "Failed").Count
-if ($failed -gt 0) {
-    Write-Host "$failed module(s) failed. Review the errors above." -ForegroundColor Red
-} else {
-    Write-Host "Selected modules returned without a terminating PowerShell error. Verify the resulting Windows behavior." -ForegroundColor Green
+    Write-Host "`n==================== EXECUTION SUMMARY ====================" -ForegroundColor Cyan
+    $results | Format-Table Module, Status, Log -AutoSize
+    $failed = @($results | Where-Object Status -eq "Failed").Count
+    if ($failed -gt 0) {
+        Write-Host "$failed module(s) failed with a terminating PowerShell error. Review their logs." -ForegroundColor Red
+    } else {
+        Write-Host "Modules returned without a terminating PowerShell error. This does not prove every operation succeeded." -ForegroundColor Yellow
+    }
+    Write-Host "Run log: $runLog" -ForegroundColor Gray
+    Write-Host "A reboot may be required." -ForegroundColor Yellow
+    Read-Host "`nPress Enter to close"
+    if ($failed -gt 0) { exit 1 }
+} finally {
+    if ($transcriptStarted) {
+        try { Stop-Transcript -ErrorAction Stop | Out-Null }
+        catch { Write-Warning "Could not close transcript cleanly: $($_.Exception.Message)" }
+    }
 }
-Write-Host "A reboot may be required." -ForegroundColor Yellow
-Read-Host "`nPress Enter to close"
-if ($failed -gt 0) { exit 1 }
