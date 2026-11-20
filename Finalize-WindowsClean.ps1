@@ -31,10 +31,27 @@ Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; pu
 Write-Host "[3/3] Cleaning temp files, Windows Update caches, and WinSxS..." -ForegroundColor Yellow
 Get-ChildItem -Path "$env:TEMP" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 Get-ChildItem -Path "$env:SystemRoot\Temp" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-@("wuauserv", "bits", "dosvc") | ForEach-Object { Stop-Service -Name $_ -Force -ErrorAction SilentlyContinue }
-Get-ChildItem -Path "$env:SystemRoot\SoftwareDistribution\Download" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-Get-ChildItem -Path "$env:SystemRoot\SoftwareDistribution\DeliveryOptimization" -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-Start-Service -Name "wuauserv" -ErrorAction SilentlyContinue
-Dism.exe /Online /Cleanup-Image /StartComponentCleanup
+$serviceNames = @("wuauserv", "bits", "dosvc")
+$serviceWasRunning = @{}
+foreach ($name in $serviceNames) {
+    $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
+    if ($svc) {
+        $serviceWasRunning[$name] = ($svc.Status -eq "Running")
+        if ($svc.Status -eq "Running") { Stop-Service -Name $name -Force -ErrorAction Stop }
+    }
+}
+try {
+    foreach ($cachePath in @("$env:SystemRoot\SoftwareDistribution\Download", "$env:SystemRoot\SoftwareDistribution\DeliveryOptimization")) {
+        if (Test-Path -LiteralPath $cachePath) {
+            Get-ChildItem -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+} finally {
+    foreach ($name in $serviceNames) {
+        if ($serviceWasRunning[$name]) { Start-Service -Name $name -ErrorAction SilentlyContinue }
+    }
+}
+$cleanup = Start-Process -FilePath "Dism.exe" -ArgumentList "/Online /Cleanup-Image /StartComponentCleanup" -Wait -PassThru -NoNewWindow
+if ($cleanup.ExitCode -ne 0) { Write-Warning "DISM component cleanup returned exit code $($cleanup.ExitCode)." }
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
 Write-Host "`n=== Done! Final tweaks applied and disk space cleaned. ===" -ForegroundColor Green

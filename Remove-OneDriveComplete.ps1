@@ -18,8 +18,12 @@ $shellKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell
 }
 
 Write-Host "[4/4] Cleaning residual OneDrive folders and blocking reinstallation..." -ForegroundColor Yellow
-@("$env:USERPROFILE\OneDrive", "$env:LOCALAPPDATA\Microsoft\OneDrive", "$env:PROGRAMDATA\Microsoft OneDrive", "C:\OneDriveTemp") | ForEach-Object {
+Write-Warning "The user OneDrive folder is intentionally preserved to protect synced and online-only files."
+@("$env:LOCALAPPDATA\Microsoft\OneDrive", "$env:PROGRAMDATA\Microsoft OneDrive", "C:\OneDriveTemp") | ForEach-Object {
     if (Test-Path $_) { Remove-Item -Path $_ -Recurse -Force -ErrorAction SilentlyContinue }
+}
+if (Test-Path "$env:USERPROFILE\OneDrive") {
+    Write-Warning "Review and manually migrate files from $env:USERPROFILE\OneDrive before deleting it. Files On-Demand may exist only in the cloud."
 }
 $odPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive"
 New-Item -Path $odPolicy -Force | Out-Null

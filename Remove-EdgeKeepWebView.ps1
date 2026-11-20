@@ -3,7 +3,7 @@ $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Removing Microsoft Edge (Keeping WebView2 Runtime) ===" -ForegroundColor Cyan
 
 Write-Host "[1/4] Stopping Edge processes..." -ForegroundColor Yellow
-@("msedge", "msedgewebview2", "MicrosoftEdgeUpdate", "setup") | ForEach-Object { Get-Process -Name $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+@("msedge", "msedgewebview2", "MicrosoftEdgeUpdate") | ForEach-Object { Get-Process -Name $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
 
 Write-Host "[2/4] Uninstalling Microsoft Edge browser..." -ForegroundColor Yellow
 @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application", "$env:ProgramFiles\Microsoft\Edge\Application") | ForEach-Object {
