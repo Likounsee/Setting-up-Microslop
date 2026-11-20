@@ -78,6 +78,81 @@ function Set-ProjectRegistryValue {
     return $true
 }
 
+
+function ConvertTo-ProjectRegistrySerializedValue {
+    param([object]$Value, [string]$ValueKind)
+    if ($ValueKind -eq 'Binary') { return [Convert]::ToBase64String([byte[]]$Value) }
+    if ($ValueKind -eq 'MultiString') { return ,([string[]]$Value) }
+    return $Value
+}
+
+function ConvertFrom-ProjectRegistrySerializedValue {
+    param([object]$Value, [string]$ValueKind)
+    if ($ValueKind -eq 'Binary') { return ,([Convert]::FromBase64String([string]$Value)) }
+    if ($ValueKind -eq 'MultiString') { return ,([string[]]@($Value)) }
+    return $Value
+}
+
+function Remove-ProjectRegistryKeyTree {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][hashtable]$Snapshot,
+        [Parameter(Mandatory = $true)][string]$BackupFile
+    )
+
+    if ($Path -notmatch '^(HKLM|HKCU|HKCR|HKU|HKCC):\\') {
+        throw "Registry key-tree path is outside supported registry hives."
+    }
+    if (-not (Test-Path -LiteralPath $Path)) { return $true }
+
+    $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
+    $rootKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
+    $tree = @()
+    function Add-RegistryTreeNode {
+        param([Microsoft.Win32.RegistryKey]$Key, [string]$RelativePath)
+        $values = @()
+        foreach ($valueName in $Key.GetValueNames()) {
+            $kind = [string]$Key.GetValueKind($valueName)
+            $raw = $Key.GetValue($valueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            $values += [ordered]@{
+                Name = [string]$valueName
+                Kind = $kind
+                Value = ConvertTo-ProjectRegistrySerializedValue -Value $raw -ValueKind $kind
+            }
+        }
+        $treeNode = [ordered]@{ RelativePath = $RelativePath; Values = $values }
+        $script:unusedRegistryTreeNode = $null
+        $tree.Add($treeNode)
+        foreach ($subName in $Key.GetSubKeyNames()) {
+            $child = $Key.OpenSubKey($subName, $false)
+            if ($null -ne $child) {
+                try {
+                    $childRelative = if ([string]::IsNullOrEmpty($RelativePath)) { $subName } else { $RelativePath + '\' + $subName }
+                    Add-RegistryTreeNode -Key $child -RelativePath $childRelative
+                } finally { $child.Dispose() }
+            }
+        }
+    }
+    try {
+        Add-RegistryTreeNode -Key $rootKey -RelativePath ''
+    } finally {
+        if ($rootKey -is [System.IDisposable]) { $rootKey.Dispose() }
+    }
+
+    $snapshotKey = '__KEYTREE__|' + $Path
+    if ($Snapshot.ContainsKey($snapshotKey)) { throw "Registry key tree already captured in this run: $Path" }
+    $Snapshot[$snapshotKey] = @{ Kind = 'KeyTree'; Path = $Path; Tree = $tree.ToArray() }
+    Save-ProjectRegistrySnapshot -Snapshot $Snapshot -Path $BackupFile | Out-Null
+
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+    if (Test-Path -LiteralPath $Path) { throw "Registry key tree still exists after removal: $Path" }
+    if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
+        Write-ProjectLog -Level INFO -Message ("Registry key tree removed and backed up: {0}" -f $Path)
+    }
+    return $true
+}
+
 function ConvertTo-ProjectRegistryBackupEntry {
     param([Parameter(Mandatory = $true)][hashtable]$Entry)
 
@@ -120,14 +195,31 @@ function Save-ProjectRegistrySnapshot {
     }
 
     $entries = @()
+    $keyTrees = @()
     foreach ($entry in $Snapshot.Values) {
-        $entries += (ConvertTo-ProjectRegistryBackupEntry -Entry $entry)
+        if ($entry.Kind -eq 'KeyTree') {
+            $serializedNodes = @()
+            foreach ($node in $entry.Tree) {
+                $serializedValues = @()
+                foreach ($value in $node.Values) {
+                    $serializedValues += [ordered]@{
+                        Name = $value.Name; Kind = $value.Kind
+                        Value = ConvertTo-ProjectRegistrySerializedValue -Value $value.Value -ValueKind $value.Kind
+                    }
+                }
+                $serializedNodes += [ordered]@{ RelativePath = $node.RelativePath; Values = $serializedValues }
+            }
+            $keyTrees += [ordered]@{ Path = $entry.Path; Nodes = $serializedNodes; ExpectedAbsent = $true }
+        } else {
+            $entries += (ConvertTo-ProjectRegistryBackupEntry -Entry $entry)
+        }
     }
     $document = [ordered]@{
         Format = 'Microslop.RegistryBackup'
-        Version = 2
+        Version = 3
         CreatedUtc = [DateTime]::UtcNow.ToString('o')
         Entries = $entries
+        KeyTrees = $keyTrees
     }
     $json = ConvertTo-Json -InputObject $document -Depth 8
     $temporaryPath = $Path + '.tmp'
@@ -151,7 +243,7 @@ function Import-ProjectRegistrySnapshot {
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Registry backup file not found: $Path" }
     $document = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-    if ($document.Format -ne 'Microslop.RegistryBackup' -or $document.Version -notin @(1, 2) -or $null -eq $document.Entries) {
+    if ($document.Format -ne 'Microslop.RegistryBackup' -or $document.Version -notin @(1, 2, 3) -or $null -eq $document.Entries) {
         throw "Unsupported or invalid registry backup format."
     }
 
@@ -188,6 +280,30 @@ function Import-ProjectRegistrySnapshot {
         }
         $snapshot[$key] = $entry
     }
+    if ($document.Version -ge 3) {
+        foreach ($treeItem in @($document.KeyTrees)) {
+            if ([string]$treeItem.Path -notmatch '^(HKLM|HKCU|HKCR|HKU|HKCC):\\' -or $null -eq $treeItem.Nodes) {
+                throw "Registry backup contains an invalid key-tree entry."
+            }
+            $nodes = @()
+            foreach ($node in @($treeItem.Nodes)) {
+                $nodeValues = @()
+                foreach ($value in @($node.Values)) {
+                    if ([string]$value.Kind -notin @('DWord','String','ExpandString','QWord','MultiString','Binary')) {
+                        throw "Registry key-tree backup contains an unsupported value kind."
+                    }
+                    $nodeValues += @{
+                        Name = [string]$value.Name; Kind = [string]$value.Kind
+                        Value = ConvertFrom-ProjectRegistrySerializedValue -Value $value.Value -ValueKind $value.Kind
+                    }
+                }
+                $nodes += @{ RelativePath = [string]$node.RelativePath; Values = $nodeValues }
+            }
+            $treeKey = '__KEYTREE__|' + [string]$treeItem.Path
+            if ($snapshot.ContainsKey($treeKey)) { throw "Registry backup contains duplicate key trees." }
+            $snapshot[$treeKey] = @{ Kind = 'KeyTree'; Path = [string]$treeItem.Path; Tree = $nodes; ExpectedAbsent = [bool]$treeItem.ExpectedAbsent }
+        }
+    }
     return ,$snapshot
 }
 
@@ -201,6 +317,24 @@ function Restore-ProjectRegistrySnapshot {
     $success = $true
     foreach ($entry in $Snapshot.Values) {
         try {
+            if ($entry.Kind -eq 'KeyTree') {
+                if ((Test-Path -LiteralPath $entry.Path) -and -not $Force) {
+                    throw "Registry key tree exists since backup; restore skipped to avoid overwriting newer data."
+                }
+                foreach ($node in @($entry.Tree | Sort-Object { ([string]$_.RelativePath).Split('\\').Count })) {
+                    $targetPath = if ([string]::IsNullOrEmpty($node.RelativePath)) { $entry.Path } else { $entry.Path.TrimEnd('\\') + '\\' + $node.RelativePath }
+                    if (-not (Test-Path -LiteralPath $targetPath)) {
+                        New-Item -Path $targetPath -Force -ErrorAction Stop | Out-Null
+                    }
+                    foreach ($value in @($node.Values)) {
+                        Set-ProjectRegistryValue -Path $targetPath -Name $value.Name -Value $value.Value -ValueKind $value.Kind | Out-Null
+                    }
+                }
+                if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
+                    Write-ProjectLog -Level INFO -Message ("Registry key tree restored: {0}" -f $entry.Path)
+                }
+                continue
+            }
             if ($null -ne $entry.CurrentValueKind -and -not $Force) {
                 $providerPath = $entry.Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
                 $currentKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
