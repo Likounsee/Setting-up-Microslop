@@ -126,4 +126,53 @@ Describe "Project registry helpers" {
         }
     }
 
+    It "backs up and restores a complete registry key tree including nested and default values" {
+        $treePath = $script:testRegistryPath + "\\Tree-" + [guid]::NewGuid().ToString("N")
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-tree-" + [guid]::NewGuid().ToString("N") + ".json")
+        $nestedPath = Join-Path $treePath "Nested\\Child"
+        $snapshot = @{}
+        try {
+            New-Item -Path $nestedPath -Force | Out-Null
+            $rootKey = Get-Item -LiteralPath $treePath
+            try { $rootKey.SetValue("", "root-default", [Microsoft.Win32.RegistryValueKind]::String) } finally { $rootKey.Dispose() }
+            Set-ProjectRegistryValue -Path $nestedPath -Name "Payload" -Value ([byte[]](3, 2, 1)) -ValueKind Binary | Should -BeTrue
+
+            Remove-ProjectRegistryKeyTree -Path $treePath -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
+            (Test-Path -LiteralPath $treePath) | Should -BeFalse
+
+            $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
+            (Test-Path -LiteralPath $nestedPath) | Should -BeTrue
+            $restoredRoot = Get-Item -LiteralPath $treePath
+            try { $restoredRoot.GetValue("") | Should -Be "root-default" } finally { $restoredRoot.Dispose() }
+            $restoredChild = Get-Item -LiteralPath $nestedPath
+            try {
+                [Convert]::ToBase64String([byte[]]$restoredChild.GetValue("Payload")) | Should -Be ([Convert]::ToBase64String([byte[]](3, 2, 1)))
+            } finally { $restoredChild.Dispose() }
+        } finally {
+            Remove-Item -LiteralPath $treePath -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It "does not overwrite a registry key tree recreated after deletion" {
+        $treePath = $script:testRegistryPath + "\\ConflictTree-" + [guid]::NewGuid().ToString("N")
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-tree-conflict-" + [guid]::NewGuid().ToString("N") + ".json")
+        $snapshot = @{}
+        try {
+            New-Item -Path $treePath -Force | Out-Null
+            Set-ProjectRegistryValue -Path $treePath -Name "Original" -Value "old" -ValueKind String | Out-Null
+            Remove-ProjectRegistryKeyTree -Path $treePath -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
+            New-Item -Path $treePath -Force | Out-Null
+            Set-ProjectRegistryValue -Path $treePath -Name "Newer" -Value "keep" -ValueKind String | Out-Null
+
+            $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeFalse
+            (Get-ItemPropertyValue -LiteralPath $treePath -Name "Newer") | Should -Be "keep"
+        } finally {
+            Remove-Item -LiteralPath $treePath -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
 }
