@@ -82,7 +82,7 @@ $backup = Get-ChildItem .\Backups\Registry\Optimize-WindowsSystem-*.json |
 .\Restore-RegistryBackup.ps1 -BackupPath $backup.FullName -Force
 ```
 
-The restore script displays the number of entries and requires typing `RESTORE` before changing anything. It skips values changed since the backup and key trees recreated after removal; pass `-Force` only when you deliberately want to overwrite those newer values. Keep backup files private because they may contain previous Windows configuration values. Registry backups cover individual values changed through `Set-ProjectRegistryValue` and the two Explorer CLSID key trees removed by `Remove-OneDriveComplete.ps1`. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
+The restore script displays the number of entries and requires typing `RESTORE` before changing anything. It skips values changed since the backup and key trees recreated after removal; pass `-Force` only when you deliberately want to overwrite those newer values. For a recreated key tree, `-Force` deletes the current tree and rebuilds it from the backup, including removing values and subkeys added after the backup. Keep backup files private because they may contain previous Windows configuration values. Registry backups cover individual values changed through `Set-ProjectRegistryValue` and the two Explorer CLSID key trees removed by `Remove-OneDriveComplete.ps1`. A backup restores registry values only; it does not reinstall removed applications, restore deleted files, or reverse external commands and service changes.
 
 
 ### Service-state backup and recovery
