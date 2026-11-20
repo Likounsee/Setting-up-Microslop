@@ -43,6 +43,15 @@ cd Setting-up-Microslop
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 ```
 
+## Safety notes
+
+- Review every module before running it; these scripts make system-wide changes and require Administrator privileges.
+- The OneDrive module now preserves `%USERPROFILE%\\OneDrive`. Check that folder and confirm cloud-only files are available before manually deleting or moving anything.
+- The bloatware module uses Windows Appx removal commands and no longer takes ownership of or deletes files from `C:\\Program Files\\WindowsApps`.
+- Disabling SysMain and hibernation is now opt-in in the optimization module. Keep the defaults unless you understand the trade-offs for your device.
+- The cleanup module attempts to restore the original running/stopped state of Windows Update services after clearing caches.
+- These changes have been reviewed statically; they still need testing on clean Windows 10 and Windows 11 virtual machines before being considered production-ready.
+
 ## Notes
 
 - **Encoding:** All `.ps1` files are saved in **UTF-8 with BOM** for full compatibility with Windows PowerShell 5.1 and PowerShell 7+.
