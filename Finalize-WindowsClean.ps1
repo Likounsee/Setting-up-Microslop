@@ -19,34 +19,37 @@ $registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
 if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
 . $registryScript
 $registrySnapshot = @{}
+$registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+$registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Final Tweaks (Privacy, File Extensions, 1:1 Mouse & Disk Cleanup) ===" -ForegroundColor Cyan
 
 Write-ProjectLog -Level INFO -Message "Locking down sensor permissions, diagnostics, and lock screen Spotlight"
 Write-Host "[1/3] Locking down sensor permissions, diagnostics, and lock screen Spotlight..." -ForegroundColor Yellow
 $ap = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"; New-Item -Path $ap -Force | Out-Null
-Set-ProjectRegistryValue -Path $ap -Name "LetAppsAccessLocation" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $ap -Name "LetAppsGetDiagnosticInfo" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $ap -Name "LetAppsSyncWithDevices" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $ap -Name "LetAppsAccessLocation" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $ap -Name "LetAppsGetDiagnosticInfo" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $ap -Name "LetAppsSyncWithDevices" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $ss = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync"; New-Item -Path $ss -Force | Out-Null
-Set-ProjectRegistryValue -Path $ss -Name "DisableSettingSync" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $ss -Name "DisableSettingSyncUserOverride" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $ss -Name "DisableSettingSync" -Value 2 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $ss -Name "DisableSettingSyncUserOverride" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"; New-Item -Path $cdm -Force | Out-Null
-Set-ProjectRegistryValue -Path $cdm -Name "RotatingLockScreenEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $cdm -Name "RotatingLockScreenOverlayEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $cdm -Name "SubscribedContent-338387Enabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $cdm -Name "RotatingLockScreenEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $cdm -Name "RotatingLockScreenOverlayEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $cdm -Name "SubscribedContent-338387Enabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $cc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"; New-Item -Path $cc -Force | Out-Null
-Set-ProjectRegistryValue -Path $cc -Name "DisableWindowsSpotlightFeatures" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $cc -Name "DisableWindowsSpotlightFeatures" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 
 Write-ProjectLog -Level INFO -Message "Showing file extensions/hidden files and disabling mouse acceleration"
 Write-Host "[2/3] Showing file extensions/hidden files and disabling mouse acceleration..." -ForegroundColor Yellow
 $adv = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; New-Item -Path $adv -Force | Out-Null
-Set-ProjectRegistryValue -Path $adv -Name "HideFileExt" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $adv -Name "Hidden" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $adv -Name "HideFileExt" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $adv -Name "Hidden" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $mp = "HKCU:\Control Panel\Mouse"
-Set-ProjectRegistryValue -Path $mp -Name "MouseSpeed" -Value "0" -ValueKind String -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $mp -Name "MouseThreshold1" -Value "0" -ValueKind String -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $mp -Name "MouseThreshold2" -Value "0" -ValueKind String -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $mp -Name "MouseSpeed" -Value "0" -ValueKind String -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $mp -Name "MouseThreshold1" -Value "0" -ValueKind String -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $mp -Name "MouseThreshold2" -Value "0" -ValueKind String -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class MouseHelper { [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, int[] c, uint d); }'
 [MouseHelper]::SystemParametersInfo(0x0004, 0, @(0, 0, 0), 3) | Out-Null
 
@@ -78,7 +81,7 @@ if ($registrySnapshot.Count -gt 0) {
     $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
     $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
     $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
     Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
