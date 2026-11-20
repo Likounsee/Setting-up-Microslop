@@ -287,8 +287,9 @@ function Save-ProjectRegistrySnapshot {
         throw
     }
 
+    $backupItemCount = $entries.Count + $keyTrees.Count
     if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
-        Write-ProjectLog -Level INFO -Message ("Persistent registry backup saved ({0} entries): {1}" -f $entries.Count, $Path)
+        Write-ProjectLog -Level INFO -Message ("Persistent registry backup saved ({0} items): {1}" -f $backupItemCount, $Path)
     }
     return $Path
 }
