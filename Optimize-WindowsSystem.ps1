@@ -16,6 +16,9 @@ $registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
 if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
 . $registryScript
 $registrySnapshot = @{}
+$registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+$registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== System Optimization (Telemetry, P2P, SysMain, Hibernation & Adaptive Power) ===" -ForegroundColor Cyan
 
@@ -25,21 +28,21 @@ Write-Host "[1/5] Disabling telemetry and diagnostic tasks..." -ForegroundColor 
     if (Get-Service -Name $_ -ErrorAction SilentlyContinue) {
         Stop-Service -Name $_ -Force -ErrorAction SilentlyContinue
         Set-Service -Name $_ -StartupType Disabled -ErrorAction SilentlyContinue
-        Set-ProjectRegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$_" -Name "Start" -Value 4 -ValueKind DWord -Snapshot $registrySnapshot
+        Set-ProjectRegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\$_" -Name "Start" -Value 4 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
     }
 }
 $dc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"; New-Item -Path $dc -Force | Out-Null
-Set-ProjectRegistryValue -Path $dc -Name "AllowTelemetry" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $dc -Name "DoNotShowFeedbackNotifications" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $dc -Name "DisableOneSettingsDownloads" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $dc -Name "AllowTelemetry" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $dc -Name "DoNotShowFeedbackNotifications" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $dc -Name "DisableOneSettingsDownloads" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Force | Out-Null
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo" -Name "Enabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Force | Out-Null
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_TrackProgs" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $sp = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"; New-Item -Path $sp -Force | Out-Null
-Set-ProjectRegistryValue -Path $sp -Name "EnableActivityFeed" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $sp -Name "PublishUserActivities" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
-Set-ProjectRegistryValue -Path $sp -Name "UploadUserActivities" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $sp -Name "EnableActivityFeed" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $sp -Name "PublishUserActivities" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+Set-ProjectRegistryValue -Path $sp -Name "UploadUserActivities" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 @("\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser", "\Microsoft\Windows\Application Experience\ProgramDataUpdater", "\Microsoft\Windows\Application Experience\StartupAppTask", "\Microsoft\Windows\Autochk\Proxy", "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator", "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip", "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector", "\Microsoft\Windows\Feedback\Siuf\DmClient", "\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload") | ForEach-Object {
     Invoke-ProjectNativeCommand -FilePath "schtasks.exe" -ArgumentList @("/Change", "/TN", "$_", "/DISABLE") -ContinueOnError | Out-Null
 }
@@ -47,9 +50,9 @@ Set-ProjectRegistryValue -Path $sp -Name "UploadUserActivities" -Value 0 -ValueK
 Write-ProjectLog -Level INFO -Message "Disabling Windows Update P2P"
 Write-Host "[2/5] Disabling Windows Update P2P..." -ForegroundColor Yellow
 $do1 = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"; New-Item -Path $do1 -Force | Out-Null
-Set-ProjectRegistryValue -Path $do1 -Name "DODownloadMode" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $do1 -Name "DODownloadMode" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $do2 = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config"; New-Item -Path $do2 -Force | Out-Null
-Set-ProjectRegistryValue -Path $do2 -Name "DODownloadMode" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $do2 -Name "DODownloadMode" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 
 Write-ProjectLog -Level INFO -Message "Optional SysMain change"
 Write-Host "[3/5] Optional SysMain change..." -ForegroundColor Yellow
@@ -65,7 +68,7 @@ Write-Host "[4/5] Optional hibernation / Fast Startup change..." -ForegroundColo
 if ((Read-Host "Disable hibernation and Fast Startup? [y/N]").Trim() -match "^(?i)y(es)?$") {
     Invoke-ProjectNativeCommand -FilePath "powercfg.exe" -ArgumentList @("/hibernate", "off") | Out-Null
     if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power") {
-        Set-ProjectRegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+        Set-ProjectRegistryValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
     }
 } else { Write-Host "Hibernation left unchanged." -ForegroundColor Gray }
 
@@ -84,7 +87,7 @@ if ($registrySnapshot.Count -gt 0) {
     $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
     $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
     $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
     Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
