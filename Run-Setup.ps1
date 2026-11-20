@@ -149,6 +149,12 @@ try {
 
     Write-Host "`n==================== EXECUTION SUMMARY ====================" -ForegroundColor Cyan
     $results | Format-Table Module, Status, Log -AutoSize
+    foreach ($problem in @($results | Where-Object { $_.Status -in @("Failed", "CompletedWithErrors") })) {
+        $firstErrorLine = ($problem.Error -split "`r?`n" | Select-Object -First 1)
+        if ($firstErrorLine) {
+            Write-Host ("  {0}: {1}" -f $problem.Module, $firstErrorLine) -ForegroundColor Yellow
+        }
+    }
     $failed = @($results | Where-Object { $_.Status -in @("Failed", "CompletedWithErrors") }).Count
     if ($failed -gt 0) {
         Write-Host "$failed module(s) reported PowerShell errors or failed with a terminating error. Review their logs." -ForegroundColor Red
