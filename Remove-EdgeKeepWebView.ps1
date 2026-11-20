@@ -20,6 +20,22 @@ $registryBackupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
 $registryBackupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 $registryBackupFile = Join-Path $registryBackupDirectory $registryBackupName
 $ErrorActionPreference = "SilentlyContinue"
+$operationJournalScript = Join-Path $PSScriptRoot "Common\OperationJournal.ps1"
+if (-not (Test-Path -LiteralPath $operationJournalScript)) { throw "Operation journal helpers not found: $operationJournalScript" }
+. $operationJournalScript
+$appxRecoveryScript = Join-Path $PSScriptRoot "Common\AppxRecovery.ps1"
+if (-not (Test-Path -LiteralPath $appxRecoveryScript)) { throw "Appx recovery helpers not found: $appxRecoveryScript" }
+. $appxRecoveryScript
+$operationJournalDirectory = Join-Path $PSScriptRoot "Backups\Operations"
+$operationJournalName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$operationJournalFile = Join-Path $operationJournalDirectory $operationJournalName
+$appxInventoryDirectory = Join-Path $PSScriptRoot "Backups\Appx"
+$appxInventoryName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
+$appxInventoryFile = Join-Path $appxInventoryDirectory $appxInventoryName
+$installedAppxPackages = @(Get-AppxPackage -AllUsers)
+$provisionedAppxPackages = @(Get-AppxProvisionedPackage -Online)
+Save-ProjectAppxInventory -InstalledPackages $installedAppxPackages -ProvisionedPackages $provisionedAppxPackages -Path $appxInventoryFile | Out-Null
+Write-Host "Appx inventory saved: $appxInventoryFile" -ForegroundColor Cyan
 Write-Host "=== Removing Microsoft Edge (Keeping WebView2 Runtime) ===" -ForegroundColor Cyan
 
 Write-ProjectLog -Level INFO -Message "Stopping Edge processes"
@@ -36,8 +52,12 @@ Write-Host "[2/4] Uninstalling Microsoft Edge browser..." -ForegroundColor Yello
         }
     }
 }
-Get-AppxPackage -AllUsers -Name "*MicrosoftEdge*" | Where-Object { $_.NonRemovable -eq $false -and $_.InstallLocation -notlike "*\SystemApps\*" } | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*MicrosoftEdge*" -and $_.DisplayName -notlike "*DevTools*" } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
+Get-AppxPackage -AllUsers -Name "*MicrosoftEdge*" | Where-Object { $_.NonRemovable -eq $false -and $_.InstallLocation -notlike "*\SystemApps\*" } | ForEach-Object {
+    Invoke-ProjectAppxPackageRemoval -Package $_ -PackageType Installed -JournalPath $operationJournalFile | Out-Null
+}
+Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like "*MicrosoftEdge*" -and $_.DisplayName -notlike "*DevTools*" } | ForEach-Object {
+    Invoke-ProjectAppxPackageRemoval -Package $_ -PackageType Provisioned -JournalPath $operationJournalFile | Out-Null
+}
 
 Write-ProjectLog -Level INFO -Message "Blocking Edge reinstallation via Windows Update"
 Write-Host "[3/4] Blocking Edge reinstallation via Windows Update..." -ForegroundColor Yellow
