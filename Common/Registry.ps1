@@ -14,7 +14,8 @@ function Set-ProjectRegistryValue {
         [Parameter(Mandatory = $true)][AllowNull()][object]$Value,
         [ValidateSet('DWord', 'String', 'ExpandString', 'QWord', 'MultiString', 'Binary')]
         [string]$ValueKind = 'DWord',
-        [hashtable]$Snapshot
+        [hashtable]$Snapshot,
+        [string]$BackupFile
     )
 
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -44,6 +45,14 @@ function Set-ProjectRegistryValue {
         }
     }
 
+    if ($null -ne $Snapshot -and $Snapshot.ContainsKey($snapshotKey)) {
+        $Snapshot[$snapshotKey].CurrentValue = $Value
+        $Snapshot[$snapshotKey].CurrentValueKind = $ValueKind
+    }
+    if (-not [string]::IsNullOrWhiteSpace($BackupFile)) {
+        Save-ProjectRegistrySnapshot -Snapshot $Snapshot -Path $BackupFile | Out-Null
+    }
+
     New-ItemProperty -LiteralPath $Path -Name $Name -Value $Value -PropertyType $ValueKind -Force -ErrorAction Stop | Out-Null
     $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
     $verifyKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
@@ -61,10 +70,6 @@ function Set-ProjectRegistryValue {
     }
     if (-not $matches) { throw "Registry verification failed for '$Path\$Name'." }
 
-    if ($null -ne $Snapshot -and $Snapshot.ContainsKey($snapshotKey)) {
-        $Snapshot[$snapshotKey].CurrentValue = $Value
-        $Snapshot[$snapshotKey].CurrentValueKind = $ValueKind
-    }
     if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
         Write-ProjectLog -Level INFO -Message ("Registry value verified: {0}\{1} ({2})" -f $Path, $Name, $ValueKind)
     }
