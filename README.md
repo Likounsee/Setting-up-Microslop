@@ -55,7 +55,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-Setup.ps1
 
 ## Development and tests
 
-The repository includes Pester tests for shared logging, external-command exit codes, guarded package-folder deletion, restoration of Windows service states, and registry snapshot/verification/restore behavior.
+The repository includes 30 Pester test cases covering shared logging, external-command exit codes, guarded package-folder deletion, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
 
 Run the test suite locally from the repository root:
 
@@ -69,7 +69,7 @@ GitHub Actions runs PowerShell syntax parsing and Pester on both PowerShell 7 (`
 
 ### Registry backup and restoration
 
-Each module that changes registry values writes or refreshes a dated JSON backup in `Backups/Registry` **before every registry mutation**. If a module is interrupted, the latest completed backup therefore still contains the original value and the intended value for conflict detection. Backups preserve the previous value, whether it existed, and its registry type. Binary values are encoded as Base64; registry data values are not copied into application logs. OneDrive Explorer CLSID key trees are now captured recursively, including nested keys, empty keys, default values, and all supported value types, before removal. The backup format is version 3 and remains able to import version 1 and 2 value-only backups.
+Each module that changes registry values writes or refreshes a dated JSON backup in `Backups/Registry` **before every registry mutation**. If a module is interrupted, the latest completed backup therefore still contains the original value and the intended value for conflict detection. Backups preserve the previous value, whether it existed, and its registry type. Binary values are encoded as Base64; registry data values are not copied into application logs. OneDrive Explorer CLSID key trees are now captured recursively, including nested keys, empty keys, default values, and all supported value types, before removal. The backup format is version 3 and remains able to import version 1 and 2 value-only backups. If a key tree contains an unsupported registry value type, removal is refused before any deletion rather than creating an incomplete backup.
 
 To restore a backup from an elevated PowerShell session:
 
