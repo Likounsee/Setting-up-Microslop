@@ -108,7 +108,7 @@ function Remove-ProjectRegistryKeyTree {
 
     $providerPath = $Path -replace '^HKLM:', 'Registry::HKEY_LOCAL_MACHINE' -replace '^HKCU:', 'Registry::HKEY_CURRENT_USER' -replace '^HKCR:', 'Registry::HKEY_CLASSES_ROOT' -replace '^HKU:', 'Registry::HKEY_USERS' -replace '^HKCC:', 'Registry::HKEY_CURRENT_CONFIG'
     $rootKey = Get-Item -LiteralPath $providerPath -ErrorAction Stop
-    $tree = @()
+    $tree = New-Object System.Collections.ArrayList
     function Add-RegistryTreeNode {
         param([Microsoft.Win32.RegistryKey]$Key, [string]$RelativePath)
         $values = @()
@@ -122,7 +122,6 @@ function Remove-ProjectRegistryKeyTree {
             }
         }
         $treeNode = [ordered]@{ RelativePath = $RelativePath; Values = $values }
-        $script:unusedRegistryTreeNode = $null
         $tree.Add($treeNode)
         foreach ($subName in $Key.GetSubKeyNames()) {
             $child = $Key.OpenSubKey($subName, $false)
@@ -145,8 +144,17 @@ function Remove-ProjectRegistryKeyTree {
     $Snapshot[$snapshotKey] = @{ Kind = 'KeyTree'; Path = $Path; Tree = $tree.ToArray() }
     Save-ProjectRegistrySnapshot -Snapshot $Snapshot -Path $BackupFile | Out-Null
 
-    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
-    if (Test-Path -LiteralPath $Path) { throw "Registry key tree still exists after removal: $Path" }
+    try {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+        if (Test-Path -LiteralPath $Path) { throw "Registry key tree still exists after removal: $Path" }
+    } catch {
+        $restoreSnapshot = @{ $snapshotKey = $Snapshot[$snapshotKey] }
+        $recovered = Restore-ProjectRegistrySnapshot -Snapshot $restoreSnapshot -Force
+        if (-not $recovered) {
+            throw "Registry key-tree removal failed and automatic recovery was incomplete. Backup: $BackupFile. Original error: $($_.Exception.Message)"
+        }
+        throw
+    }
     if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
         Write-ProjectLog -Level INFO -Message ("Registry key tree removed and backed up: {0}" -f $Path)
     }
