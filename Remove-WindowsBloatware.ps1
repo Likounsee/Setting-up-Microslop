@@ -71,5 +71,12 @@ Set-ProjectRegistryValue -Path $cc -Name "DisableWindowsConsumerFeatures" -Value
 Set-ProjectRegistryValue -Path $cc -Name "DisableSoftLanding" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
 Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_IrisRecommendations" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
+if ($registrySnapshot.Count -gt 0) {
+    $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
+    $backupName = "{0}-{1}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss")
+    $backupPath = Join-Path $backupDirectory $backupName
+    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -Path $backupPath | Out-Null
+    Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
+}
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Finished. Review warnings above; some operations may have been skipped or failed. ===" -ForegroundColor Yellow
