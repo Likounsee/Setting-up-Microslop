@@ -4,17 +4,18 @@ Modular PowerShell automation suite to debloat, optimize, and configure fresh **
 
 ## Quick Start (One-Liner)
 
-Open **PowerShell** (standard or Administrator) and run:
+Download the latest ZIP from GitHub, extract it, then **double-click `Run-Setup.cmd`**. You can also launch it from a terminal:
 
 ```powershell
-$tmp = "$env:TEMP\microslop-$(Get-Random)"; $zip = "$tmp.zip"; try { Invoke-RestMethod "https://github.com/Likounsee/Setting-up-Microslop/archive/refs/heads/main.zip" -OutFile $zip; Expand-Archive $zip -DestinationPath $tmp -Force; $dir = (Get-ChildItem $tmp -Directory)[0].FullName; powershell -NoProfile -ExecutionPolicy Bypass -File "$dir\Run-Setup.ps1" } finally { Remove-Item $zip, $tmp -Recurse -Force -ErrorAction SilentlyContinue }
+.\Run-Setup.cmd
 ```
 
-This command automatically:
-1. Downloads the latest repository archive into `%TEMP%`.
-2. Launches `Run-Setup.ps1` with automatic UAC Administrator elevation.
-3. Prompts `[Y/N]` for each module so you only run what you need.
-4. Deletes all downloaded archives and extracted scripts upon exit.
+The launcher starts `Run-Setup.ps1`, requests UAC Administrator elevation when needed, and keeps the console open after completion so the final status and any errors remain visible. Logs and operation backups stay in the extracted folder.
+
+If you prefer a PowerShell one-liner, use this version (it deliberately keeps the extracted folder so logs and recovery backups are not deleted):
+
+```powershell
+$tmp = Join-Path $env:TEMP ("microslop-" + (Get-Date -Format "yyyyMMdd-HHmmss")); $zip = "$tmp.zip"; New-Item -ItemType Directory -Path $tmp -Force | Out-Null; Invoke-RestMethod "https://github.com/Likounsee/Setting-up-Microslop/archive/refs/heads/main.zip" -OutFile $zip; Expand-Archive $zip -DestinationPath $tmp -Force; $dir = (Get-ChildItem $tmp -Directory)[0].FullName; & "$dir\Run-Setup.cmd"; Write-Host "Setup files, logs and backups retained at: $dir"
 
 ---
 
@@ -22,7 +23,8 @@ This command automatically:
 
 | Script | Description |
 | :--- | :--- |
-| **`Run-Setup.ps1`** | Interactive orchestrator (`[Y/N]`) with automatic UAC Administrator elevation. |
+| **`Run-Setup.cmd`** | Recommended Windows launcher; keeps the console open and displays the final exit code. |
+| **`Run-Setup.ps1`** | Interactive orchestrator (`[Y/N]`) with automatic UAC Administrator elevation and detailed error reporting. |
 | **`Remove-EdgeKeepWebView.ps1`** | Uninstalls Microsoft Edge and blocks reinstallation via Windows Update policies while preserving and updating **WebView2 Runtime**. |
 | **`Remove-OneDriveComplete.ps1`** | Completely uninstalls OneDrive, removes Explorer sidebar entries, blocks reinstallation, and restores `Desktop`, `Documents`, `Pictures`, `Music`, and `Videos` to local paths. |
 | **`Remove-XboxComplete.ps1`** | Removes Xbox apps and Game Bar overlays, neutralizes `ms-gamebar` protocol pop-ups, and sets Xbox auth services to `Manual` so **Minecraft** login continues working. |
