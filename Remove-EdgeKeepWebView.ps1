@@ -12,6 +12,10 @@ trap {
     }
     throw
 }
+$registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
+if (-not (Test-Path -LiteralPath $registryScript)) { throw "Registry helpers not found: $registryScript" }
+. $registryScript
+$registrySnapshot = @{}
 $ErrorActionPreference = "SilentlyContinue"
 Write-Host "=== Removing Microsoft Edge (Keeping WebView2 Runtime) ===" -ForegroundColor Cyan
 
@@ -36,14 +40,14 @@ Write-ProjectLog -Level INFO -Message "Blocking Edge reinstallation via Windows 
 Write-Host "[3/4] Blocking Edge reinstallation via Windows Update..." -ForegroundColor Yellow
 $edgePolicy = "HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate"
 New-Item -Path $edgePolicy -Force | Out-Null
-Set-ItemProperty -Path $edgePolicy -Name "Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -Type DWord
-Set-ItemProperty -Path $edgePolicy -Name "Update{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -Type DWord
-Set-ItemProperty -Path $edgePolicy -Name "DoNotUpdateToEdgeWithChromium" -Value 1 -Type DWord
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Update{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $edgePolicy -Name "DoNotUpdateToEdgeWithChromium" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
 
 Write-ProjectLog -Level INFO -Message "Verifying WebView2 Runtime & enabling updates"
 Write-Host "[4/4] Verifying WebView2 Runtime & enabling updates..." -ForegroundColor Yellow
-Set-ItemProperty -Path $edgePolicy -Name "Install{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -Type DWord
-Set-ItemProperty -Path $edgePolicy -Name "Update{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -Type DWord
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Install{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
+Set-ProjectRegistryValue -Path $edgePolicy -Name "Update{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot
 if (-not (Test-Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}")) {
     Invoke-ProjectNativeCommand -FilePath "winget.exe" -ArgumentList @("install", "--id", "Microsoft.EdgeWebView2Runtime", "--silent", "--accept-package-agreements", "--accept-source-agreements") | Out-Null
 }
