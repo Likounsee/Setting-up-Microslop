@@ -28,7 +28,7 @@ Describe "Project registry helpers" {
 
     It "restores a prior value from the snapshot" {
         $snapshot = @{}
-        Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "RestoreMe" -Value "original" -ValueKind String -Snapshot $snapshot | Should -BeTrue
+        Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "RestoreMe" -Value "original" -ValueKind String | Should -BeTrue
         Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "RestoreMe" -Value "changed" -ValueKind String -Snapshot $snapshot | Should -BeTrue
         Restore-ProjectRegistrySnapshot -Snapshot $snapshot
         (Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "RestoreMe") | Should -Be "original"
@@ -53,7 +53,8 @@ Describe "Project registry helpers" {
         $snapshot = @{}
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-" + [guid]::NewGuid().ToString("N") + ".json")
         try {
-            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "before" -ValueKind String -Snapshot $snapshot | Should -BeTrue
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "before" -ValueKind String | Should -BeTrue
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "script-change" -ValueKind String -Snapshot $snapshot | Should -BeTrue
             Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Should -Be $backupPath
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "Persistent" -Value "after" -ValueKind String -Snapshot $snapshot | Should -BeTrue
             $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
@@ -69,12 +70,15 @@ Describe "Project registry helpers" {
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-" + [guid]::NewGuid().ToString("N") + ".json")
         $bytes = [byte[]](1, 2, 3, 254)
         try {
+            $originalBytes = [byte[]](9, 8, 7)
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value $originalBytes -ValueKind Binary | Should -BeTrue
             Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value $bytes -ValueKind Binary -Snapshot $snapshot | Should -BeTrue
             Save-ProjectRegistrySnapshot -Snapshot $snapshot -Path $backupPath | Out-Null
+            Set-ProjectRegistryValue -Path $script:testRegistryPath -Name "BinaryValue" -Value ([byte[]](4, 5, 6)) -ValueKind Binary -Snapshot $snapshot | Should -BeTrue
             $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
             (Restore-ProjectRegistrySnapshot -Snapshot $loaded) | Should -BeTrue
             [Convert]::ToBase64String([byte[]](Get-ItemPropertyValue -LiteralPath $script:testRegistryPath -Name "BinaryValue")) |
-                Should -Be ([Convert]::ToBase64String($bytes))
+                Should -Be ([Convert]::ToBase64String($originalBytes))
         } finally {
             Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
         }
