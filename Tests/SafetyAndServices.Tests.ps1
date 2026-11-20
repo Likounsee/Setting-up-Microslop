@@ -189,3 +189,26 @@ Describe "Verified filesystem package backups" {
         Test-Path -LiteralPath $script:fileBackupTarget | Should -BeFalse
     }
 }
+
+
+Describe "Explicit filesystem cleanup allowlist" {
+    BeforeEach {
+        $script:approvedFolder = Join-Path $script:safetyTestRoot "ApprovedOneDriveResidual"
+        New-Item -ItemType Directory -Path $script:approvedFolder -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $script:approvedFolder "state.dat") -Value "onedrive-cache"
+        $script:approvedBackupRoot = Join-Path $script:safetyTestRoot "ApprovedBackups"
+    }
+
+    It "backs up and removes a directory explicitly present in the allowlist" {
+        $backup = Backup-ProjectApprovedDirectory -TargetPath $script:approvedFolder -AllowedTargetPaths @($script:approvedFolder) -BackupDirectory $script:approvedBackupRoot
+        Test-Path -LiteralPath $script:approvedFolder | Should -BeFalse
+        $restored = Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:safetyTestRoot
+        $restored | Should -Be 1
+        Get-Content -LiteralPath (Join-Path $script:approvedFolder "state.dat") -Raw | Should -Match "onedrive-cache"
+    }
+
+    It "refuses a directory not explicitly present in the allowlist" {
+        { Backup-ProjectApprovedDirectory -TargetPath $script:approvedFolder -AllowedTargetPaths @((Join-Path $script:safetyTestRoot "DifferentPath")) -BackupDirectory $script:approvedBackupRoot } | Should -Throw
+        Test-Path -LiteralPath $script:approvedFolder | Should -BeTrue
+    }
+}
