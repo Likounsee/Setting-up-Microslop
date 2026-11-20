@@ -134,6 +134,9 @@ function Remove-ProjectRegistryKeyTree {
         $values = @()
         foreach ($valueName in $Key.GetValueNames()) {
             $kind = [string]$Key.GetValueKind($valueName)
+            if ($kind -notin @('DWord','String','ExpandString','QWord','MultiString','Binary','None')) {
+                throw "Unsupported registry value type '$kind' in key tree '$Path'; the tree was not removed."
+            }
             $raw = $Key.GetValue($valueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
             $values += [ordered]@{
                 Name = [string]$valueName
