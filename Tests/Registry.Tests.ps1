@@ -218,4 +218,25 @@ Describe "Project registry helpers" {
         }
     }
 
+    It "replaces a recreated registry key tree only when Force is supplied" {
+        $treePath = $script:testRegistryPath + "\\ForceTree-" + [guid]::NewGuid().ToString("N")
+        $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-tree-force-" + [guid]::NewGuid().ToString("N") + ".json")
+        $snapshot = @{}
+        try {
+            New-Item -Path $treePath -Force | Out-Null
+            Set-ProjectRegistryValue -Path $treePath -Name "Original" -Value "backup" -ValueKind String | Out-Null
+            Remove-ProjectRegistryKeyTree -Path $treePath -Snapshot $snapshot -BackupFile $backupPath | Should -BeTrue
+
+            New-Item -Path $treePath -Force | Out-Null
+            Set-ProjectRegistryValue -Path $treePath -Name "Newer" -Value "replace-me" -ValueKind String | Out-Null
+            $loaded = Import-ProjectRegistrySnapshot -Path $backupPath
+            (Restore-ProjectRegistrySnapshot -Snapshot $loaded -Force) | Should -BeTrue
+            (Get-ItemPropertyValue -LiteralPath $treePath -Name "Original") | Should -Be "backup"
+            (Get-ItemProperty -LiteralPath $treePath -Name "Newer" -ErrorAction SilentlyContinue) | Should -BeNullOrEmpty
+        } finally {
+            Remove-Item -LiteralPath $treePath -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
 }
