@@ -4,9 +4,7 @@ Write-Host "=== Killing Processes & Full Removal (Binaries + Data/Caches) ===" -
 
 function Remove-FolderForce([string]$TargetPath) {
     if (Test-Path $TargetPath) {
-        takeown /F "$TargetPath" /R /D Y 2>$null | Out-Null
-        icacls "$TargetPath" /grant Administrators:F /T /C /Q 2>$null | Out-Null
-        icacls "$TargetPath" /grant *S-1-5-32-544:F /T /C /Q 2>$null | Out-Null
+        # Do not take ownership or rewrite ACLs; remove only the targeted cache folder.
         Remove-Item -Path $TargetPath -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
@@ -36,7 +34,6 @@ foreach ($p in $patterns) {
     Get-AppxPackage -AllUsers -Name $p | Where-Object { $_.NonRemovable -eq $false -and $_.InstallLocation -notlike "*\SystemApps\*" } | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
     Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like $p } | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null
     Get-ChildItem -Path "$env:LOCALAPPDATA\Packages" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-FolderForce $_.FullName }
-    Get-ChildItem -Path "$env:ProgramFiles\WindowsApps" -Directory -Filter $p -ErrorAction SilentlyContinue | ForEach-Object { Remove-FolderForce $_.FullName }
 }
 
 Write-Host "[4/5] Cleaning residual system directories..." -ForegroundColor Yellow
