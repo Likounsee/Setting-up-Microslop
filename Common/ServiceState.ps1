@@ -10,6 +10,7 @@ function Restore-ProjectServiceStates {
         [string[]]$ServiceNames = @()
     )
 
+    $success = $true
     foreach ($name in $ServiceNames) {
         if ($WasRunning.ContainsKey($name) -and $WasRunning[$name]) {
             try {
@@ -18,6 +19,7 @@ function Restore-ProjectServiceStates {
                     Write-ProjectLog -Level INFO -Message "Restored service to Running: $name"
                 }
             } catch {
+                $success = $false
                 $message = "Could not restore service '$name': $($_.Exception.Message)"
                 if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
                     Write-ProjectLog -Level WARNING -Message $message
@@ -93,5 +95,5 @@ function Restore-ProjectServiceSnapshot {
     param([Parameter(Mandatory = $true)][hashtable]$Snapshot)
 
     $names = @($Snapshot.Keys)
-    Restore-ProjectServiceStates -WasRunning $Snapshot -ServiceNames $names
+    return (Restore-ProjectServiceStates -WasRunning $Snapshot -ServiceNames $names)
 }
