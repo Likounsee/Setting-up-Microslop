@@ -14,7 +14,10 @@ function Restore-ProjectServiceStates {
     foreach ($name in $ServiceNames) {
         if ($WasRunning.ContainsKey($name) -and $WasRunning[$name]) {
             try {
-                Start-Service -Name $name -ErrorAction Stop
+                $currentService = Get-Service -Name $name -ErrorAction Stop
+                if ($currentService.Status -ne 'Running') {
+                    Start-Service -Name $name -ErrorAction Stop
+                }
                 if (Get-Command Write-ProjectLog -ErrorAction SilentlyContinue) {
                     Write-ProjectLog -Level INFO -Message "Restored service to Running: $name"
                 }
