@@ -55,12 +55,5 @@ Set-ProjectRegistryValue -Path $odPolicy -Name "DisableFileSyncNGSC" -Value 1 -V
 Remove-Item -Path "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" -Recurse -Force -ErrorAction SilentlyContinue
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
-if ($registrySnapshot.Count -gt 0) {
-    $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
-    $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
-    $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
-    Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
-}
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! OneDrive uninstalled and local user directories restored. ===" -ForegroundColor Green
