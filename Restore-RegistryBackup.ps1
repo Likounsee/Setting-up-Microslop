@@ -3,7 +3,8 @@
 param(
     [Parameter(Mandatory = $true, Position = 0)]
     [ValidateNotNullOrEmpty()]
-    [string]$BackupPath
+    [string]$BackupPath,
+    [switch]$Force
 )
 
 $registryScript = Join-Path $PSScriptRoot "Common\Registry.ps1"
@@ -23,7 +24,7 @@ if ($confirmation -cne "RESTORE") {
     exit 0
 }
 
-$restored = Restore-ProjectRegistrySnapshot -Snapshot $snapshot
+$restored = Restore-ProjectRegistrySnapshot -Snapshot $snapshot -Force:$Force
 if ($restored) {
     Write-Host "Registry restoration completed." -ForegroundColor Green
     exit 0
