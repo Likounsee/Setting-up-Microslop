@@ -1,7 +1,7 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     . (Join-Path $script:repoRoot "Common/Registry.ps1")
-    $script:testRegistryPath = "HKCU:\\Software\\Microslop-Pester-" + [guid]::NewGuid().ToString("N")
+    $script:testRegistryPath = "HKCU:\Software\Microslop-Pester-" + [guid]::NewGuid().ToString("N")
     $script:registrySnapshot = @{}
 }
 
