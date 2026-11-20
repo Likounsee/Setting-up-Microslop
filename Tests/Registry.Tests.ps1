@@ -127,9 +127,9 @@ Describe "Project registry helpers" {
     }
 
     It "backs up and restores a complete registry key tree including nested and default values" {
-        $treePath = $script:testRegistryPath + "\\Tree-" + [guid]::NewGuid().ToString("N")
+        $treePath = $script:testRegistryPath + "\Tree-" + [guid]::NewGuid().ToString("N")
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-tree-" + [guid]::NewGuid().ToString("N") + ".json")
-        $nestedPath = Join-Path $treePath "Nested\\Child"
+        $nestedPath = Join-Path $treePath "Nested\Child"
         $snapshot = @{}
         try {
             New-Item -Path $nestedPath -Force | Out-Null
@@ -156,7 +156,7 @@ Describe "Project registry helpers" {
     }
 
     It "does not overwrite a registry key tree recreated after deletion" {
-        $treePath = $script:testRegistryPath + "\\ConflictTree-" + [guid]::NewGuid().ToString("N")
+        $treePath = $script:testRegistryPath + "\ConflictTree-" + [guid]::NewGuid().ToString("N")
         $backupPath = Join-Path ([System.IO.Path]::GetTempPath()) ("microslop-registry-tree-conflict-" + [guid]::NewGuid().ToString("N") + ".json")
         $snapshot = @{}
         try {
