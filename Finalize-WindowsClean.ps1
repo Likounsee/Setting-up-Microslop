@@ -77,12 +77,5 @@ try {
 }
 Invoke-ProjectNativeCommand -FilePath "Dism.exe" -ArgumentList @("/Online", "/Cleanup-Image", "/StartComponentCleanup") -ContinueOnError | Out-Null
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
-if ($registrySnapshot.Count -gt 0) {
-    $backupDirectory = Join-Path $PSScriptRoot "Backups\Registry"
-    $backupName = "{0}-{1}-{2}.json" -f [System.IO.Path]::GetFileNameWithoutExtension($MyInvocation.MyCommand.Name), (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
-    $backupPath = Join-Path $backupDirectory $backupName
-    Save-ProjectRegistrySnapshot -Snapshot $registrySnapshot -BackupFile $registryBackupFile -Path $backupPath | Out-Null
-    Write-Host "Registry backup saved: $backupPath" -ForegroundColor Cyan
-}
 Complete-ProjectLogging -Message "Script reached its completion message."
 Write-Host "`n=== Done! Final tweaks applied and disk space cleaned. ===" -ForegroundColor Green
