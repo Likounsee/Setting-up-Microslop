@@ -17,7 +17,7 @@ function Save-ProjectAppxInventory {
         [Parameter(Mandatory = $true)][string]$Path
     )
 
-    $installedFields = @("Name", "PackageFullName", "PackageFamilyName", "Version", "Architecture", "Publisher", "PublisherId", "InstallLocation", "IsFramework", "IsResourcePackage", "IsBundle", "NonRemovable", "SignatureKind", "Status", "PackageUserInformation")
+    $installedFields = @("Name", "PackageFullName", "PackageFamilyName", "Version", "Architecture", "Publisher", "PublisherId", "InstallLocation", "IsFramework", "IsResourcePackage", "IsBundle", "NonRemovable", "SignatureKind", "Status")
     $provisionedFields = @("DisplayName", "PackageName", "Version", "Architecture", "PublisherId", "ResourceId", "InstallLocation", "Regions", "CustomData")
     $installed = @(
         foreach ($package in $InstalledPackages) {
@@ -99,4 +99,62 @@ function Invoke-ProjectAppxPackageRemoval {
         }
         return $false
     }
+}
+
+function Import-ProjectAppxInventory {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Appx inventory not found: $Path" }
+    $document = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    if ($document.Format -ne "Microslop.AppxInventory" -or $document.Version -ne 1 -or $null -eq $document.InstalledPackages -or $null -eq $document.ProvisionedPackages) {
+        throw "Unsupported or invalid Appx inventory."
+    }
+    foreach ($package in $document.InstalledPackages) {
+        if ([string]::IsNullOrWhiteSpace([string]$package.PackageFullName)) { throw "Appx inventory contains an installed package without PackageFullName." }
+    }
+    foreach ($package in $document.ProvisionedPackages) {
+        if ([string]::IsNullOrWhiteSpace([string]$package.PackageName)) { throw "Appx inventory contains a provisioned package without PackageName." }
+    }
+    return $document
+}
+
+function Get-ProjectAppxRecoveryPlan {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][object]$Inventory,
+        [Parameter(Mandatory = $true)][object[]]$CurrentInstalledPackages,
+        [Parameter(Mandatory = $true)][object[]]$CurrentProvisionedPackages
+    )
+
+    $installedNames = @($CurrentInstalledPackages | ForEach-Object { [string](Get-ProjectObjectPropertyValue -InputObject $_ -Name "PackageFullName") })
+    $provisionedNames = @($CurrentProvisionedPackages | ForEach-Object { [string](Get-ProjectObjectPropertyValue -InputObject $_ -Name "PackageName") })
+    $plan = @(
+        foreach ($package in $Inventory.InstalledPackages) {
+            $present = $installedNames -contains [string]$package.PackageFullName
+            $locationExists = (-not [string]::IsNullOrWhiteSpace([string]$package.InstallLocation)) -and (Test-Path -LiteralPath ([string]$package.InstallLocation) -PathType Container)
+            [pscustomobject]@{
+                PackageType = "Installed"
+                Name = [string]$package.Name
+                Identity = [string]$package.PackageFullName
+                WasPresent = $true
+                PresentNow = $present
+                OriginalInstallLocationExists = [bool]$locationExists
+                RecoveryHint = if ($present) { "No action needed." } elseif ($locationExists) { "Inspect the original AppxManifest.xml; registration may be possible, but is not guaranteed." } else { "Use Microsoft Store Library, the original vendor installer, or matching Windows installation media. Package binaries were not backed up." }
+            }
+        }
+        foreach ($package in $Inventory.ProvisionedPackages) {
+            $present = $provisionedNames -contains [string]$package.PackageName
+            [pscustomobject]@{
+                PackageType = "Provisioned"
+                Name = [string]$package.DisplayName
+                Identity = [string]$package.PackageName
+                WasPresent = $true
+                PresentNow = $present
+                OriginalInstallLocationExists = $false
+                RecoveryHint = if ($present) { "No action needed." } else { "Use matching Windows installation media or a trusted package source to reprovision. Provisioned package payload was not backed up." }
+            }
+        }
+    )
+    return $plan
 }
