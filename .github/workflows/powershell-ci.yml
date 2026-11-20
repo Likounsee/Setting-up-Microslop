@@ -7,25 +7,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Pester on ${{ matrix.shell }}
+  test-pwsh:
+    name: Pester on PowerShell 7
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shell: [pwsh, powershell]
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Install Pester
-        shell: ${{ matrix.shell }}
+        shell: pwsh
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module -Name Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force
 
       - name: Parse PowerShell scripts
-        shell: ${{ matrix.shell }}
+        shell: pwsh
         run: |
           $files = Get-ChildItem -Path . -Filter *.ps1 -Recurse
           $errors = @()
@@ -44,5 +40,41 @@ jobs:
           Write-Host "Parsed $($files.Count) PowerShell files successfully."
 
       - name: Run Pester tests
-        shell: ${{ matrix.shell }}
+        shell: pwsh
+        run: Invoke-Pester -Path ./Tests -CI
+
+  test-windows-powershell:
+    name: Pester on Windows PowerShell 5.1
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: powershell
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force
+
+      - name: Parse PowerShell scripts
+        shell: powershell
+        run: |
+          $files = Get-ChildItem -Path . -Filter *.ps1 -Recurse
+          $errors = @()
+          foreach ($file in $files) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              $errors += $parseErrors | ForEach-Object { "${file}: $_" }
+            }
+          }
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            exit 1
+          }
+          Write-Host "Parsed $($files.Count) PowerShell files successfully."
+
+      - name: Run Pester tests
+        shell: powershell
         run: Invoke-Pester -Path ./Tests -CI
