@@ -37,7 +37,7 @@ Set-ItemProperty -Path $sp -Name "EnableActivityFeed" -Value 0 -Type DWord
 Set-ItemProperty -Path $sp -Name "PublishUserActivities" -Value 0 -Type DWord
 Set-ItemProperty -Path $sp -Name "UploadUserActivities" -Value 0 -Type DWord
 @("\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser", "\Microsoft\Windows\Application Experience\ProgramDataUpdater", "\Microsoft\Windows\Application Experience\StartupAppTask", "\Microsoft\Windows\Autochk\Proxy", "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator", "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip", "\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector", "\Microsoft\Windows\Feedback\Siuf\DmClient", "\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload") | ForEach-Object {
-    schtasks /Change /TN "$_" /DISABLE 2>$null | Out-Null
+    Invoke-ProjectNativeCommand -FilePath "schtasks.exe" -ArgumentList @("/Change", "/TN", "$_", "/DISABLE") -ContinueOnError | Out-Null
 }
 
 Write-ProjectLog -Level INFO -Message "Disabling Windows Update P2P"
@@ -59,8 +59,7 @@ if ((Read-Host "Disable SysMain? This can reduce performance on some PCs. [y/N]"
 Write-ProjectLog -Level INFO -Message "Optional hibernation / Fast Startup change"
 Write-Host "[4/5] Optional hibernation / Fast Startup change..." -ForegroundColor Yellow
 if ((Read-Host "Disable hibernation and Fast Startup? [y/N]").Trim() -match "^(?i)y(es)?$") {
-    powercfg.exe /hibernate off
-    if ($LASTEXITCODE -ne 0) { throw "powercfg /hibernate off failed with exit code $LASTEXITCODE" }
+    Invoke-ProjectNativeCommand -FilePath "powercfg.exe" -ArgumentList @("/hibernate", "off") | Out-Null
     if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power") {
         Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord
     }
@@ -71,10 +70,10 @@ Write-Host "[5/5] Configuring power plan based on form factor..." -ForegroundCol
 $chassis = (Get-CimInstance -ClassName Win32_SystemEnclosure).ChassisTypes
 $hasBat  = $null -ne (Get-CimInstance -ClassName Win32_Battery)
 if ($hasBat -or ($chassis | Where-Object { $_ -in @(8, 9, 10, 14, 30, 31, 32) })) {
-    powercfg.exe /setactive 381b4222-f694-41f0-9685-ff5bb260df2e | Out-Null
+    Invoke-ProjectNativeCommand -FilePath "powercfg.exe" -ArgumentList @("/setactive", "381b4222-f694-41f0-9685-ff5bb260df2e") | Out-Null
     Write-Host "      Laptop detected -> 'Balanced' power plan activated." -ForegroundColor Green
 } else {
-    powercfg.exe /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c | Out-Null
+    Invoke-ProjectNativeCommand -FilePath "powercfg.exe" -ArgumentList @("/setactive", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c") | Out-Null
     Write-Host "      Desktop detected -> 'High Performance' power plan activated." -ForegroundColor Green
 }
 Complete-ProjectLogging -Message "Script reached its completion message."
