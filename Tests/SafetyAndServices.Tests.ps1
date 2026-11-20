@@ -152,7 +152,7 @@ Describe "Verified filesystem package backups" {
         Test-Path -LiteralPath $script:fileBackupTarget | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $backup "manifest.json") | Should -BeTrue
 
-        $restored = Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot -BackupDirectory (Join-Path $script:safetyTestRoot "legacy-backups")
+        $restored = Restore-ProjectFileSystemBackup -BackupRoot $backup -PackagesRoot $script:packagesRoot
         $restored | Should -Be 1
         Get-Content -LiteralPath (Join-Path $script:fileBackupTarget "nested\payload.txt") -Raw | Should -Match "recovery-data"
     }
