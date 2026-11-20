@@ -22,7 +22,7 @@ function Set-ProjectRegistryValue {
     }
 
     $snapshotKey = Get-ProjectRegistrySnapshotKey -Path $Path -Name $Name
-    if ($Snapshot -and -not $Snapshot.ContainsKey($snapshotKey)) {
+    if (($null -ne $Snapshot) -and -not $Snapshot.ContainsKey($snapshotKey)) {
         $exists = $false
         $oldValue = $null
         $oldKind = $null
