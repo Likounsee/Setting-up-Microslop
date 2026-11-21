@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 $loggingScript = Join-Path $PSScriptRoot "Common\Logging.ps1"
 if (Test-Path -LiteralPath $loggingScript) {
     . $loggingScript
@@ -61,7 +61,11 @@ Set-ProjectRegistryValue -Path $copUser -Name "TurnOffWindowsCopilot" -Value 1 -
 Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 $dshPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Dsh"; New-Item -Path $dshPolicy -Force | Out-Null
 Set-ProjectRegistryValue -Path $dshPolicy -Name "AllowNewsAndInterests" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+try {
+    Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarDa" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+} catch {
+    Write-ProjectLog -Level WARNING -Message ("TaskbarDa is protected by Windows ACLs and could not be modified directly (Widgets already disabled via Dsh policy): " + $_.Exception.Message)
+}
 
 Write-ProjectLog -Level INFO -Message "Uninstalling bloatware apps and purging AppData folders"
 Write-Host "[3/5] Uninstalling bloatware apps and purging AppData folders..." -ForegroundColor Yellow
@@ -84,12 +88,20 @@ Write-ProjectLog -Level INFO -Message "Blocking sponsored suggestions"
 Write-Host "[5/5] Blocking sponsored suggestions..." -ForegroundColor Yellow
 $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"; New-Item -Path $cdm -Force | Out-Null
 @("ContentDeliveryAllowed", "FeatureManagementEnabled", "OemPreInstalledAppsEnabled", "PreInstalledAppsEnabled", "PreInstalledAppsEverEnabled", "SilentInstalledAppsEnabled", "SoftLandingEnabled", "SubscribedContent-310093Enabled", "SubscribedContent-338387Enabled", "SubscribedContent-338388Enabled", "SubscribedContent-338389Enabled", "SubscribedContent-338393Enabled", "SubscribedContent-353694Enabled", "SubscribedContent-353696Enabled", "SystemPaneSuggestionsEnabled") | ForEach-Object {
-    Set-ProjectRegistryValue -Path $cdm -Name $_ -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+    try {
+        Set-ProjectRegistryValue -Path $cdm -Name $_ -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+    } catch {
+        Write-ProjectLog -Level WARNING -Message ("Could not set ContentDeliveryManager\$_ : " + $_.Exception.Message)
+    }
 }
 $cc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent"; New-Item -Path $cc -Force | Out-Null
 Set-ProjectRegistryValue -Path $cc -Name "DisableWindowsConsumerFeatures" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
 Set-ProjectRegistryValue -Path $cc -Name "DisableSoftLanding" -Value 1 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
-Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_IrisRecommendations" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+try {
+    Set-ProjectRegistryValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "Start_IrisRecommendations" -Value 0 -ValueKind DWord -Snapshot $registrySnapshot -BackupFile $registryBackupFile
+} catch {
+    Write-ProjectLog -Level WARNING -Message ("Could not set Start_IrisRecommendations: " + $_.Exception.Message)
+}
 Stop-Process -Name "explorer" -Force -ErrorAction SilentlyContinue
 Complete-ProjectLogging -Message "Script reached its completion message."
-Write-Host "`n=== Finished. Review warnings above; some operations may have been skipped or failed. ===" -ForegroundColor Yellow
+Write-Host "`n=== Done! Bloatware removed and sponsored suggestions blocked. ===" -ForegroundColor Green

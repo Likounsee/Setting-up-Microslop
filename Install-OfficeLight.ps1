@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 $loggingScript = Join-Path $PSScriptRoot "Common\Logging.ps1"
 if (Test-Path -LiteralPath $loggingScript) {
     . $loggingScript
@@ -29,15 +29,46 @@ if ($langChoice -eq "FR") {
 
 Write-Host "Selected language: $langLabel" -ForegroundColor Green
 
-$workDir = "$env:TEMP\ODT-Light"
+$workDir = Join-Path $env:TEMP ("ODT-Light-" + (Get-Date -Format "yyyyMMddHHmmss"))
 New-Item -Path $workDir -ItemType Directory -Force | Out-Null
 Set-Location -Path $workDir
 
-Write-ProjectLog -Level INFO -Message "Downloading Office Deployment Tool"
+Write-ProjectLog -Level INFO -Message "Resolving latest Office Deployment Tool download URL"
 Write-Host "[1/3] Downloading Office Deployment Tool (ODT)..." -ForegroundColor Yellow
+
+$odtUrl = $null
+try {
+    $detailsPage = Invoke-WebRequest -Uri "https://www.microsoft.com/en-us/download/details.aspx?id=49117" -UseBasicParsing -TimeoutSec 20
+    $match = [regex]::Match($detailsPage.Content, 'https://download\.microsoft\.com/download/[^"''\s]+/officedeploymenttool_[^"''\s]+\.exe')
+    if ($match.Success) {
+        $odtUrl = $match.Value
+    }
+} catch {
+    Write-ProjectLog -Level WARNING -Message ("Dynamic ODT URL lookup failed, falling back to known URL: " + $_.Exception.Message)
+}
+
+if ([string]::IsNullOrWhiteSpace($odtUrl)) {
+    $odtUrl = "https://download.microsoft.com/download/6c1eeb25-cf8b-41d9-8d0d-cc1dbc032140/officedeploymenttool_18129-20030.exe"
+}
+
+Write-ProjectLog -Level INFO -Message "Downloading ODT from: $odtUrl"
 $odtExe = Join-Path $workDir "odt.exe"
-Invoke-WebRequest -Uri "https://download.microsoft.com/download/2/7/A/27AF1BE6-DD20-4CB4-B154-EBAB8A7D4A7E/officedeploymenttool_17830-20162.exe" -OutFile $odtExe -UseBasicParsing
-Invoke-ProjectNativeCommand -FilePath $odtExe -ArgumentList @("/quiet", "/extract:$workDir") | Out-Null
+Invoke-WebRequest -Uri $odtUrl -OutFile $odtExe -UseBasicParsing
+
+if (-not (Test-Path -LiteralPath $odtExe) -or (Get-Item -LiteralPath $odtExe).Length -lt 500KB) {
+    throw "Downloaded ODT executable is missing or invalid (file size too small)."
+}
+
+Write-ProjectLog -Level INFO -Message "Extracting Office Deployment Tool"
+$extractProc = Start-Process -FilePath $odtExe -ArgumentList @("/quiet", "/extract:`"$workDir`"") -Wait -PassThru -ErrorAction Stop
+if ($extractProc.ExitCode -ne 0) {
+    throw "ODT extraction failed with exit code $($extractProc.ExitCode)."
+}
+
+$setupExe = Join-Path $workDir "setup.exe"
+if (-not (Test-Path -LiteralPath $setupExe)) {
+    throw "ODT extracted successfully but setup.exe was not found in $workDir."
+}
 
 Write-ProjectLog -Level INFO -Message "Generating minimal XML configuration"
 Write-Host "[2/3] Generating minimal XML configuration ($langLabel only)..." -ForegroundColor Yellow
@@ -67,8 +98,15 @@ $xmlPath = Join-Path $workDir "config.xml"
 
 Write-ProjectLog -Level INFO -Message "Running Office setup"
 Write-Host "[3/3] Running Office setup..." -ForegroundColor Yellow
-$officeExitCode = Invoke-ProjectNativeCommand -FilePath (Join-Path $workDir "setup.exe") -ArgumentList @("/configure", $xmlPath)
+$setupProc = Start-Process -FilePath $setupExe -ArgumentList @("/configure", "`"$xmlPath`"") -Wait -PassThru -ErrorAction Stop
+$officeExitCode = $setupProc.ExitCode
+
 Set-Location -Path $env:TEMP
 Remove-Item -Path $workDir -Recurse -Force -ErrorAction SilentlyContinue
+
+if ($officeExitCode -notin @(0, 3010)) {
+    throw "Office setup failed with exit code $officeExitCode."
+}
+
 Complete-ProjectLogging -Message "Office setup process returned exit code $officeExitCode."
 Write-Host "`n=== Done! Lightweight Office 365 ($langLabel) finished (Exit code $officeExitCode). ===" -ForegroundColor Green
