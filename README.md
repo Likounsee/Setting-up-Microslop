@@ -32,6 +32,7 @@ $tmp = Join-Path $env:TEMP ("microslop-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
 | **`Remove-WindowsBloatware.ps1`** | Disables Windows Recall, Copilot, and Widgets, uninstalls preinstalled bloatware, purges residual `AppData` caches, and blocks sponsored app suggestions. |
 | **`Install-OfficeLight.ps1`** | Downloads the official Office Deployment Tool (ODT) and installs **Microsoft 365 ProPlus** containing **only Word, Excel, and PowerPoint** in a single chosen language (**French** or **English**). |
 | **`Optimize-WindowsSystem.ps1`** | Disables telemetry/diagnostic tasks, Windows Update P2P (Delivery Optimization), `SysMain`, and hibernation (`hiberfil.sys`), and sets the power plan dynamically (**Balanced** on laptops, **High Performance** on desktops). |
+| **`Set-AmdGpuStability.ps1`** | Detects active AMD display adapters and applies backed-up MPO (`OverlayTestMode=5`), HAGS (`HwSchMode=1`), and per-adapter ULPS (`EnableUlps=0`) registry workarounds. Skips cleanly when no AMD GPU is detected. |
 | **`Finalize-WindowsClean.ps1`** | Locks down sensor/diagnostic permissions and lock screen Spotlight, reveals file extensions and hidden files, disables mouse acceleration (1:1 raw input), and cleans temporary files, update caches, and `WinSxS`. |
 
 ---
@@ -52,6 +53,7 @@ cd Setting-up-Microslop
 - The OneDrive module now preserves `%USERPROFILE%\\OneDrive`. Check that folder and confirm cloud-only files are available before manually deleting or moving anything.
 - The bloatware module uses Windows Appx removal commands and no longer takes ownership of or deletes files from `C:\\Program Files\\WindowsApps`.
 - Disabling SysMain and hibernation is now opt-in in the optimization module. Keep the defaults unless you understand the trade-offs for your device.
+- The AMD GPU stability module is opt-in in the orchestrator and changes MPO, HAGS, and AMD ULPS registry values only when an active AMD display adapter is detected. These are compatibility workarounds, not a guaranteed fix for `DPC_WATCHDOG_VIOLATION (0x133)`; keep AMD drivers, chipset drivers, BIOS, and Windows updated, and review the generated registry backup before restoring anything.
 - The final-cleanup module now asks before deleting temporary files, limits cleanup to entries older than seven days, and skips trees containing reparse points or newer nested data. Windows Update cache cleanup and DISM component-store cleanup are also opt-in.
 - Non-reversible maintenance actions are recorded in a timestamped JSON operation journal under `Backups/Operations`. This is an audit trail, not a rollback mechanism. Windows Update caches are regenerable and are not backed up; DISM component-store cleanup cannot be undone.
 - The cleanup module attempts to restore the original running/stopped state of Windows Update services after cache maintenance.
@@ -60,7 +62,7 @@ cd Setting-up-Microslop
 
 ## Development and tests
 
-The repository includes 60 Pester test cases covering setup error classification and diagnostic formatting, shared logging, external-command exit codes and journaled exit codes, Appx inventory and recovery planning, auditable Appx removals, persistent operation journals, age-limited temporary cleanup, explicit temporary-path allowlists, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
+The repository includes 62 Pester test cases covering setup error classification and diagnostic formatting, shared logging, external-command exit codes and journaled exit codes, Appx inventory and recovery planning, auditable Appx removals, persistent operation journals, age-limited temporary cleanup, explicit temporary-path allowlists, guarded package-folder deletion, verified filesystem backup and restore, explicit cleanup allowlists, destination-collision protection, manifest/path validation, backup-integrity checks, restoration and persistence of Windows service states, registry value snapshots, recursive key-tree backups, and conflict-safe rollback.
 
 Run the test suite locally from the repository root:
 
