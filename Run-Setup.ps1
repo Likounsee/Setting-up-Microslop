@@ -55,6 +55,7 @@ $modules = @(
     @{ File = "Remove-WindowsBloatware.ps1"; Title = "Remove Copilot, Recall & Bloatware"; Description = "Kills and deletes Copilot, Recall, Widgets, sponsored shortcuts, and preinstalled apps." },
     @{ File = "Install-OfficeLight.ps1"; Title = "Install Lightweight Office 365"; Description = "Installs only Word, Excel, and PowerPoint (prompts for French or English)." },
     @{ File = "Optimize-WindowsSystem.ps1"; Title = "System & Power Optimization"; Description = "Disables telemetry, P2P updates, SysMain, hibernation, and adapts power plan." },
+    @{ File = "Set-AmdGpuStability.ps1"; Title = "AMD GPU Stability Tweaks"; Description = "Detects AMD GPUs and backs up/applies MPO, HAGS, and ULPS registry workarounds." },
     @{ File = "Finalize-WindowsClean.ps1"; Title = "Final Tweaks & Disk Cleanup"; Description = "Locks down sensors/Spotlight, shows extensions, disables mouse acceleration, cleans WinSxS." }
 )
 
