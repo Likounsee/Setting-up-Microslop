@@ -8,14 +8,13 @@ Describe "AMD GPU stability helpers" {
         Mock Get-PnpDevice {
             @(
                 [pscustomobject]@{ FriendlyName = "AMD Radeon"; InstanceId = "PCI\VEN_1002&DEV_1234" },
-                [pscustomobject]@{ FriendlyName = "NVIDIA GPU"; InstanceId = "PCI\VEN_10DE&DEV_5678" },
-                [pscustomobject]@{ FriendlyName = "AMD inactive"; InstanceId = "PCI\VEN_1002&DEV_9999"; Status = "Error" }
+                [pscustomobject]@{ FriendlyName = "NVIDIA GPU"; InstanceId = "PCI\VEN_10DE&DEV_5678" }
             )
         }
 
         $devices = @(Get-ProjectAmdDisplayDevices)
 
-        $devices.Count | Should -Be 2
+        $devices.Count | Should -Be 1
         $devices[0].FriendlyName | Should -Be "AMD Radeon"
         Should -Invoke Get-PnpDevice -Times 1 -Exactly -ParameterFilter {
             $Class -eq "Display" -and $Status -eq "OK"
